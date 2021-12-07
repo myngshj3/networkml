@@ -1,0 +1,59 @@
+function f() {
+    uml_script = "@startuml\n";
+    WMAP = (("is", "--|>"), ("manages", "*--"), ("knows", "o--"));
+    AMAP = {};
+    AMAP["private"] = "-";
+    AMAP["public"] = "+";
+    AMAP["protected"] = "#";
+    n_rows = len(WMAP);
+    i = 0;
+    C = collect_nodes(-spec=(clazz=~/./), -can, -data=true);
+    //relations = {};
+    for c C {
+        n = c[0];
+        att = c[1];
+        clazz = att["clazz"];
+        uml_script = concat(uml_script, "class ", clazz, " {", "\n");
+        key = keys(att);
+        for k key {
+            if (k != "clazz") {
+                name = k;
+                type = att[k]["type"];
+                print(concat("type=", type));
+                acc = att[k]["accessibility"];
+                acc = AMAP[acc];
+                tuple = "";
+                if (type == "method") {
+                    tuple = "()";
+                }
+                uml_script = concat(uml_script, acc, " ", name, tuple, "\n");
+            }
+        }
+        uml_script = concat(uml_script, "}\n");
+    }
+
+    for c C {
+        //relations[c] = {};
+        for m WMAP {
+            S = [];
+            push(S, c[0]);
+            args = concat("-src=S, -es=(", m[0], "==true), -ds=(clazz=~/./), -data=true");
+            script = concat("collect_dst_nodes(", args, ");");
+            print(script);
+            D = interpret(script);
+            //is_rel = [];
+            for d D {
+                uml_script = concat(uml_script, c[1]["clazz"], " ", m[1], " ", d[1]["clazz"], "\n");
+                //push(is_rel, d);
+            }
+            //k = m[0];
+            //relations[c][k] = is_rel;
+        }
+        //is_relations[c] = is_rel;
+    }
+    uml_script = concat(uml_script, "@enduml", "\n");
+    print(uml_script);
+    save_text_file("models/class-diagram.uml", uml_script);
+    print("UML script has been written in:", "models/class-diagram.uml");
+    print("You can see UML diagram with typing 'java -jar plantuml.jar models/class-diagram.uml'.");
+}

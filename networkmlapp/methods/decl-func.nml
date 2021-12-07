@@ -1,0 +1,26 @@
+
+global function plus(x,y){
+    a = x+y;
+    return a;
+}
+
+//global function minus(x,y){
+//    a = x-y;
+//    return a;
+//}
+
+global function mult(x,y){
+    a = x*y;
+    return a;
+}
+
+//global function divide(x,y){
+//    a = x/y;
+//    return a;
+//}
+
+//global function mod(x,y){
+//    a = x%y;
+//    return a;
+//}
+

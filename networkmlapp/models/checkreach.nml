@@ -1,0 +1,19 @@
+function checkreach() {
+    reaches = (
+        "[clazz==""Human""](--[is==true]-->[clazz==""Robot""]){1..100}",
+        "[clazz==""Child""](--[isParentOf==true]-->[clazz=~/./]){1..100}"
+    );
+
+    nreaches = len(reaches);
+    i = 0;
+    while (i < nreaches) {
+        S = reaches[i];
+        print(concat("checking reaches[", i+1, "]: ", S));
+        interpret(concat("S = ", S, ";"));
+        modelcheck(-spec=S, -con);
+        R = modelcheck(-spec=S, -reach, -seg, -depth);
+        print("result");
+        print(R);
+        i = i+1;
+    }
+}

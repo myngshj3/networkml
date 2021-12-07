@@ -1,0 +1,7 @@
+//
+//
+//
+function find_reachable_paths(spec) {
+    // global p = find_reachable_paths(spec);
+    print(spec);
+}

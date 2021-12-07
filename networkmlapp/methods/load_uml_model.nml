@@ -1,0 +1,4 @@
+function f() {
+    M = load_xlsx(-f="uml-model.xlsx", -t=("clazz",1,2), -t=("clazz-attrib",1,2,3,4));
+    return M;
+}

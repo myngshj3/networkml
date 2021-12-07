@@ -1,0 +1,6 @@
+function collect_paths() {
+	U = select_nodes(-spec=(name=~/./), -can=(), -data=false);
+	V = select_nodes(-spec=(name=~/./), -can=(), -data=false);
+	E = nodes_product(-l=U, -r=V);
+	print(E);
+}

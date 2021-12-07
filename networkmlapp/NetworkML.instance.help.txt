@@ -1,0 +1,10 @@
+
+Hello, my signature is '{}'.
+For seeing my available methods, request as follow,
+    available_methods()
+Once you identify callable method, you may see the usage, requesting as follow,
+    my_method(--help)
+Also, I may understand original meanings of script. If you need, try as follow,
+    interpret(text-script)
+
+Good luck!

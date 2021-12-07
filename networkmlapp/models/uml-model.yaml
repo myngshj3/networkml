@@ -1,0 +1,211 @@
+!!python/object:networkx.classes.multidigraph.MultiDiGraph
+_adj: &id017
+  1:
+    10: &id004
+      0:
+        is: true
+        isParentOf: false
+        knows: false
+        manages: false
+  2:
+    10: &id005
+      0:
+        is: true
+        isParentOf: false
+        knows: false
+        manages: false
+    14: &id015
+      0:
+        is: true
+        isParentOf: false
+        knows: false
+        manages: true
+  3:
+    10: &id006
+      0:
+        is: true
+        isParentOf: false
+        knows: false
+        manages: false
+  4:
+    10: &id007
+      0:
+        is: true
+        isParentOf: false
+        knows: false
+        manages: false
+  5:
+    10: &id008
+      0:
+        is: true
+        isParentOf: false
+        knows: false
+        manages: false
+  6:
+    10: &id009
+      0:
+        is: true
+        isParentOf: false
+        knows: false
+        manages: false
+    15: &id016
+      0:
+        is: true
+        isParentOf: false
+        knows: false
+        manages: true
+  7:
+    9: &id002
+      0:
+        is: false
+        isParentOf: true
+        knows: true
+        manages: false
+    10: &id010
+      0:
+        is: true
+        isParentOf: false
+        knows: false
+        manages: false
+  8:
+    9: &id003
+      0:
+        is: false
+        isParentOf: true
+        knows: true
+        manages: false
+    10: &id011
+      0:
+        is: true
+        isParentOf: false
+        knows: false
+        manages: false
+  9:
+    10: &id012
+      0:
+        is: true
+        isParentOf: false
+        knows: false
+        manages: false
+  10: {}
+  11: {}
+  12: {}
+  13: {}
+  14: {}
+  15:
+    10: &id013
+      0:
+        is: true
+        isParentOf: false
+        knows: false
+        manages: false
+  16:
+    11: &id014
+      0:
+        is: false
+        isParentOf: false
+        knows: false
+        manages: true
+_node: &id019
+  1:
+    calls: &id001
+      accessibility: public
+      type: property
+    clazz: Customer
+    eats: *id001
+    goesShopping: *id001
+    name: *id001
+    purchases: *id001
+    sleeps: *id001
+  2:
+    clazz: Receptant
+    name: *id001
+    receivesCall: *id001
+    reports: *id001
+  3:
+    clazz: Banker
+    name: *id001
+    sales: *id001
+  4:
+    clazz: Investor
+    name: *id001
+  5:
+    clazz: Researcher
+    investigates: *id001
+    name: *id001
+  6:
+    clazz: President
+  7:
+    clazz: Mother
+    name: *id001
+  8:
+    clazz: Father
+    name: *id001
+  9:
+    clazz: Child
+    name: *id001
+  10:
+    clazz: Human
+    eats: *id001
+    name: *id001
+    sleeps: *id001
+    thinks: *id001
+  11:
+    clazz: Computer
+    name: *id001
+  12:
+    clazz: Food
+    name: *id001
+  13:
+    clazz: Drink
+    name: *id001
+  14:
+    clazz: Employee
+  15:
+    clazz: Employer
+  16:
+    clazz: Manager
+_pred:
+  1: {}
+  2: {}
+  3: {}
+  4: {}
+  5: {}
+  6: {}
+  7: {}
+  8: {}
+  9:
+    7: *id002
+    8: *id003
+  10:
+    1: *id004
+    2: *id005
+    3: *id006
+    4: *id007
+    5: *id008
+    6: *id009
+    7: *id010
+    8: *id011
+    9: *id012
+    15: *id013
+  11:
+    16: *id014
+  12: {}
+  13: {}
+  14:
+    2: *id015
+  15:
+    6: *id016
+  16: {}
+_succ: *id017
+adjlist_inner_dict_factory: &id018 !!python/name:builtins.dict ''
+adjlist_outer_dict_factory: *id018
+edge_attr_dict_factory: *id018
+edge_key_dict_factory: *id018
+graph:
+  spec-sentences: {}
+graph_attr_dict_factory: *id018
+node_attr_dict_factory: *id018
+node_dict_factory: *id018
+nodes: !!python/object:networkx.classes.reportviews.NodeView
+  _nodes: *id019

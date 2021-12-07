@@ -1,0 +1,28 @@
+function f() {
+    M = load_xlsx(-f="models/uml-model.xlsx", -t=("clazz",1));
+    T1 = M[0];
+    //print(T1);
+    header = T1[0];
+    ncols = len(header);
+    nrows = len(T1);
+    i = 1;
+    while(i < nrows) {
+        attrib_desc = "";
+        j = 0;
+        while (j < ncols) {
+            attrib = concat("""", header[j], """==""", T1[i][j], """");
+            if (j == 0) {
+                attrib_desc = attrib;
+            } else {
+                attrib_desc = concat(attrib_desc, ",", attrib);
+            }
+            j = j+1;
+        }
+        args = concat("-spec=(", attrib_desc, "), -can, -ow=true");
+        script = concat("newnode(", args, ");");
+        //print(concat("*[", i, "]  ", script));
+        N = interpret(script);
+        //print(N);
+        i = i+1;
+    }
+}

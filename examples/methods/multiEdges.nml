@@ -1,0 +1,17 @@
+function multiEdges() {
+    // E = collect_edges(-spec=(type=~/./), -can=(), -data=false);
+    E = collect_edges(-spec, -can=(), -data=false);
+    F = project(E, (1,2));
+    print(F);
+    // print(E);
+    print("self loop edges:");
+    for e E {
+        // print(e);
+        u = e[0];
+        v = e[1];
+        if (u == v) {
+            sle = (e[0], e[1]);
+            print(concat("self loop edg: ", sle));
+        }
+    }
+}

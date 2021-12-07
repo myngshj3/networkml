@@ -1,0 +1,3 @@
+Speed note: the first call to parse will take much longer that subsequent calls, as caches are being warmed up.
+
+The parser can also parse pre-tokenized text. For some languages (including Chinese), this is required due to the lack of a built-in tokenizer.

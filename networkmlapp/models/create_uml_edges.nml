@@ -1,0 +1,42 @@
+function f() {
+    M = load_xlsx(-f="models/uml-model.xlsx", -t=("relations",1,2,3,4,5,6));
+    R = M[0];
+    //print(R);
+    header = R[0];
+    n_cols = len(header);
+    n_rows = len(R);
+    i = 1;
+    while(i < n_rows) {
+        attrib_desc = "";
+        j = 2;
+        while (j < n_cols) {
+            attrib = concat("""", header[j], """==", R[i][j], "");
+            //print(concat("cols[", j, "]", attrib));
+            if (j == 2) {
+                attrib_desc = attrib;
+            } else {
+                attrib_desc = concat(attrib_desc, ",", attrib);
+            }
+            j = j+1;
+        }
+        // collects source nodes
+        args = concat("-spec=(", header[0], "==""", R[i][0], """), -can, -data");
+        script = concat( "collect_nodes(", args, ");" );
+        //print(script);
+        U = interpret(script);
+        //print(U);
+        // collects source nodes
+        args = concat("-spec=(", header[1], "==""", R[i][1], """), -can, -data");
+        script = concat( "collect_nodes(", args, ");" );
+        //print(script);
+        V = interpret(script);
+        //print(V);
+        // create edges
+        args = concat("-src=U, -dst=V, -spec=(", attrib_desc, "), -ow=true");
+        script = concat("newedge(", args, ");");
+        //print(concat("[", i, "]", script));
+        E = interpret(script);
+        //print(E);
+        i = i+1;
+    }
+}

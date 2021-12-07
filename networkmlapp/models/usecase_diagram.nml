@@ -1,0 +1,30 @@
+// @startuml
+// left to right direction
+// actor "Food Critic" as fc
+// rectangle Restaurant {
+//   usecase "Eat Food" as UC1
+//   usecase "Pay for Food" as UC2
+//   usecase "Drink" as UC3
+// }
+// fc --> UC1
+// fc --> UC2
+// fc --> UC3
+// @enduml
+// @startuml
+// left to right direction
+// // skinparam packageStyle rectangle
+// actor customer
+// actor clerk
+// rectangle checkout {
+//   customer -- (checkout)
+//   (checkout) .> (payment) : include
+//   (help) .> (checkout) : extends
+//   (checkout) -- clerk
+// }
+// @enduml
+
+function f() {
+    M = load_xlsx(-f="models/uml-model.xlsx", -t=("usecases",1,2,3,4,5,6));
+    R = M[0];
+
+}

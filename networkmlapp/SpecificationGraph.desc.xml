@@ -1,0 +1,1149 @@
+<class name="SpecificationGraph">
+
+    <method name="select_nodes">
+        <doc>
+            This presents specification of method 'SpecificationGraph.select_nodes()'.
+
+            General Purpose:
+            Collects managed nodes whose attributes match specified node spec.
+            Node spec is specified by the following format.
+              --node_spec=(spec-sentence)
+            (spec-sentence) may be as follows or combination of follows,
+              name=="My name", name=~/y nam/, name != "Shoji", name !=~ /y nam/
+            This method may accept other arguments.
+            See document of requirement for arguments, for more information.
+        </doc>
+        <args-arrangement>
+            spec, node_spec
+            can, candidates
+            data, with_data
+        </args-arrangement>
+        <args-requirement>
+            // This presents requirements for arguments of method 'SpecificationGraph.select_nodes()'.
+            //
+            // General Description of Requirement for Argument:
+            // At least one argument must be given.
+            // args[0] have to be an instance of CommandOption,
+            // whose option name is 'node_spec' and whose assignee is instance of BinaryValidatee.
+            // If two or more arguments given, args[1] have to be an instance of CommandOption,
+            // whose option name is 'candidate' and whose assignee is list or tuple.
+            // If three or more arguments given, args[2] have to be an instance of CommandOption,
+            // whose option name is 'with_data' and whose assignee's type is bool.
+            // Four or more arguments given, they are ignored without notifying to 'caller'.
+            //
+            // args[0]: -node_spec=(|(spec-assignment)) where -node_spec can be alternated by short name 'spec'.
+            //          (spec-sentence) must be sentence or symbol for it, which can be evaluated as boolean value.
+            // args[1]: -candidates(|=(selection candidates) where -candidates can be alternated by short name 'can'.
+            // args[2]: -with_data(|=(true or false)) where -with_data can be alternated by short name 'data'.
+            //
+            // Check Sequences:
+            // If arrange of args enabled, more better.
+            // new_args = [_ for _ in args]
+            // args length check
+            if len(args) == 0
+                False, Too short argument.
+            // args[0] check
+            if not isinstance(args[0], CommandOption)
+                False, args[0] must be CommandOption
+            if args[0].name != 'node_spec' and args[0].name != 'spec'
+                False, args[0] must be -spec or -node_spec
+            if args[0].has_assignee
+                //if not isinstance(args[0].value, BinaryEvaluatee)
+                //    if not isinstance(args[0].value, NetworkSymbol)
+                //        return False, args[0] must be option -spec with BinaryEvaluatee or symbol to it.
+                //    if not isinstance(caller.get_var(args[0].value.symbol).value, BinaryEvaluatee)
+                //        return False, args[0] must be option -spec with BinaryEvaluatee or symbol to it.
+                //    False, args[0] must be option -spec and have BinaryEvaluatee.
+            fi
+            // args[1] check, if given.
+            if len(args) == 1
+                True, OK
+            if not isinstance(args[1], CommandOption)
+                False, args[1] must be CommandOption.
+            if args[1].name != 'candidates' and args[1].name != 'can'
+                False, args[1] must be -condidates or -can.
+            // null option is accepted for args[1]
+            if not args[1].has_assignee and len(args) == 2
+                return True, OK
+            if args[1].has_assignee
+                if not type(args[1].value) is list and not type(args[1].value) is tuple
+                    False, args[1] must be option which has list or tuple.
+            fi
+            if len(args) == 2
+                return True, OK
+            if len(args) != 3
+                return False, Too many arguments.
+            if not isinstance(args[2], CommandOption)
+                return False, args[2] must be CommandOption
+            if not args[2].name in ('with_data', 'data')
+                return False, args[2] must be -with_data or -data.
+            if not args[1].has_assignee
+                return True, OK
+            if type(args[2].value) is not bool
+                return False, args[2] must be option which has bool value.
+            // no check remained args.
+            return True, OK
+        </args-requirement>
+    </method>
+
+    <method name="collect_edges_with_candidates">
+        <doc>
+            // This presents requirements for arguments of method 'SpecificationGraph.collect_edges_with_candidates()'.
+            //
+            // General Description of Requirement for Arguments(self, caller, args):
+            // This method selects edges with specified conditions.
+            //
+            // args[0]: -spec, --spec,  -node_spec, --node_spec
+            // args[1]: -can, --can, -candidates, --candidates
+            // args[2]: -data, --data, -with_data, --with_data
+            //
+            // Check Sequences:
+            // See args requirement.
+        </doc>
+        <args-arrangement>
+            spec, node_spec
+            can, candidates
+            data, with_data
+        </args-arrangement>
+        <args-requirement>
+            False, Not supported yet.
+        </args-requirement>
+    </method>
+
+    <method name="node_attr_names">
+        <doc>
+            // This presents requirements for arguments of method 'SpecificationGraph.node_attr_names()'.
+            //
+            // General Description of Requirement for Arguments(self, caller, args):
+            // This method collects node attribute names from specified nodes.
+            //
+            // args[0]: -spec, --spec
+            //
+            // Check Sequences:
+            // See args requirement
+        </doc>
+        <args-arrangement>
+            spec, node_spec
+            nodes, candidates, can
+        </args-arrangement>
+        <args-requirement>
+            if len(args) != 2
+                return False, Too few or many argument(s).
+            if not isinstance(args[0], CommandOption)
+                return False, args[0] must be option.
+            if args[0].name not in ("spec", "node_spec")
+                return False, args[0] must be option -spec.
+            if not isinstance(args[0].value, list)
+                return False, args[0] must have list.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="edge_attr_names">
+        <doc>
+            // This presents requirements for arguments of method 'SpecificationGraph.edge_attr_names()'.
+            //
+            // General Description of Requirement for Arguments(self, caller, args):
+            // THis method collect attribute names which specified edges have.
+            //
+            // args[0]: -spec, --spec
+            //
+            // Check Sequences:
+            // See args requirement.
+        </doc>
+        <args-arrangement>
+        	spec, edge_spec
+            edges, candidates, can
+        </args-arrangement>
+        <args-requirement>
+            if len(args) != 2
+                False, Too few or many argument(s).
+            if not isinstance(args[0], CommandOption)
+                False, args[0] must be option.
+            if args[0].name not in ("spec", "edge_spec")
+                False, args[0] must be option -spec.
+            if not isinstance(args[0].value, list)
+                False, args[0] must have list.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="node_attr_values">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.node_attr_values()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method collects node attribute values with specified attribute names.
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+            spec, node_spec
+            nodes, candidates, can
+        </args-arrangement>
+        <args-requirement>
+            if len(args) != 1 and len(args) != 2
+                False, Too few or many argument(s).
+            if not isinstance(args[0], CommandOption)
+                False, args[0] must be option.
+            if args[0].name not in ("spec", "node_spec")
+                False, args[0] must be option -spec.
+            if not isinstance(args[0].value, list)
+                False, args[0] must have list.
+            if len(args) == 1
+                True, OK
+            if not isinstance(args[1], CommandOption)
+                False, args[1] must be option.
+            if args[1].name not in ("can", "candidates")
+                False, args[1] must be option -(can|candidates).
+            if not isinstance(args[0].value, list)
+                False, args[1] must have list.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="edge_attr_values">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.edge_attr_values()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method collects value of specified attribute names.
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+            spec, edge_spec
+            edges, candidates, can
+        </args-arrangement>
+        <args-requirement>
+            if len(args) != 1 and len(args) != 2
+                False, Too few or many argument(s).
+            if not isinstance(args[0], CommandOption)
+                False, args[0] must be option.
+            if args[0].name not in ("spec", "edge_spec")
+                False, args[0] must be option -spec.
+            if not isinstance(args[0].value, list)
+                False, args[0] must have list.
+            if len(args) == 1
+                True, OK
+            if not isinstance(args[1], CommandOption)
+                False, args[1] must be option.
+            if args[1].name not in ("can", "candidates", "edges")
+                False, args[1] must be option -(can|candidates).
+            if not isinstance(args[0].value, list)
+                False, args[1] must have list.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="nodes_product">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.nodes_product()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, U, V):
+        // This method generates node product list from two given node lists.
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+            l, left
+            r, right
+        </args-arrangement>
+        <args-requirement>
+            if len(args) != 2
+                False, Too few or many argument(s).
+            if not isinstance(args[0], CommandOption)
+                False, args[0] must be option.
+            if args[0].name not in ("l", "left")
+                False, args[0] must be option -from.
+            if not isinstance(args[0].value, list)
+                False, args[0] must have list.
+            if not isinstance(args[1], CommandOption)
+                False, args[1] must be option.
+            if args[1].name not in ("r", "right")
+                False, args[1] must be option -to.
+            if not isinstance(args[0].value, list)
+                False, args[1] must have list.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="edges_to_nodes_product">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.edges_to_nodes_product()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, edges):
+        // FIXME no description
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            False, Not supported yet.
+        </args-requirement>
+    </method>
+
+    <method name="subtract_nodes_product">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.subtract_nodes_product()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, U, V):
+        // FIXME no description
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+            l, left
+            r, right
+        </args-arrangement>
+        <args-requirement>
+            False, Not supported yet.
+        </args-requirement>
+    </method>
+
+    <method name="nodes_product_to_edges">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.nodes_product_to_edges()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method create edges with given node product with specs.
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+            can, candidates
+            spec, edge_spec
+            overwrite, ow
+        </args-arrangement>
+        <args-requirement>
+            //if len(args) != 2
+            //    False, Too few or many argument(s).
+            if not isinstance(args[0], CommandOption)
+                False, args[0] must be option.
+            if args[0].name not in ("can", "candidates")
+                False, args[0] must be option -(can|candidates).
+            if args[0].has_assignee
+	            if not isinstance(args[0].value, list)
+    	            False, args[0] must have list.
+			fi
+            if not isinstance(args[1], CommandOption)
+                False, args[1] must be option.
+            if args[1].name not in ("spec", "edge_spec")
+                False, args[1] must be option -(spec).
+            if args[1].has_assignee
+	            if not isinstance(args[0].value, list)
+    	            False, args[1] must have list.
+    	    fi
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="project">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.project()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method generates projected list from given list with column numbers to be selected.
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+            l, left
+            r, right
+        </args-arrangement>
+        <args-requirement>
+            if len(args) == 0 or len(args) == 1
+                False, Too few or many argument(s).
+            if not isinstance(args[0], CommandOption)
+                False, args[0] must be option.
+            if not isinstance(args[1], CommandOption)
+                False, args[1] must be option.
+            if args[0].name not in ("l", "left")
+                False, args[0] must be option -set.
+            if not isinstance(args[0].value, list)
+                False, args[0] must have list.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="collect_edges">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.collect_edges()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method select edges which have specified spec.
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+            spec, edge_spec
+            edges, can, candidates
+            data, with_data
+        </args-arrangement>
+        <args-requirement>
+            if not isinstance(args[0], CommandOption)
+                False, args[0] must be option.
+            if args[0].name not in ("spec", "edge_spec")
+                False, args[0] must be option -spec.
+            if not isinstance(args[1], CommandOption)
+                False, args[1] must be option.
+            if args[1].name not in ("edges", "candidates", "can")
+                False, args[1] must be option -(candidates|cand).
+            True, OK
+            //if len(args) > 2
+            //    False, Too many arguments.
+        </args-requirement>
+    </method>
+
+    <method name="collect_nodes">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.collect_nodes()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method calls select_nodes(). See that.
+        //
+        </doc>
+        <args-arrangement>
+            spec, node_spec
+            can, candidates
+            data, with_data
+        </args-arrangement>
+        <args-requirement>
+            refer=select_nodes
+        </args-requirement>
+    </method>
+
+    <method name="collect_dst_nodes">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.collect_dst_nodes()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method selects nodes which has specified spec and is dst node of at least one edge.
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+            src, src_nodes
+            es, edge_spec
+            ds, dst_spec
+            data, with_data
+        </args-arrangement>
+        <args-requirement>
+            // No check implementated yet.
+            return True, OK.
+<!--            if len(args) == 0-->
+<!--                False, Too few argument.-->
+<!--            if not isinstance(args[0], CommandOption)-->
+<!--                False, args[0] must be option.-->
+<!--            if args[0].name not in ("spec", "node_spec")-->
+<!--                False, args[0] must be option -spec.-->
+<!--            if not isinstance(args[0].value, GenericEvaluatee)-->
+<!--                False, args[0] must have bool evaluable object.-->
+<!--            if len(args) == 1-->
+<!--                True, OK-->
+<!--            if len(args) > 2-->
+<!--                False, Too many arguments.-->
+<!--            if not isinstance(args[1], CommandOption)-->
+<!--                False, args[1] must be option.-->
+<!--            if args[1].name not in ("candidates", "cand")-->
+<!--                False, args[1] must be option -(candidates|cand).-->
+<!--            if not (type(args[1]) is list or type(args[1]) is tuple)-->
+<!--                False, args[1] must be list or tuple.-->
+<!--            True, OK-->
+        </args-requirement>
+    </method>
+
+    <method name="cardinality">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.cardinality()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, a):
+        // This method counts cardinality of list or tuple.
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+            col, collection
+        </args-arrangement>
+        <args-requirement>
+            if len(args) != 1
+                return False, Too few or many argument(s).
+            if not isinstance(args[0], CommandOption)
+                return False, type mismatched.
+            if not args[0].has_assignee
+                return False, Option value not assigned.
+            if type(args[0].value) is list or type(args[0].value) is tuple:
+                return True, OK.
+            False, Option value type mismatched.
+        </args-requirement>
+    </method>
+
+    <method name="minus">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.minus()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method subtracts a list element(s) from another list.
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+            l, left
+            r, right
+        </args-arrangement>
+        <args-requirement>
+            if len(args) != 2
+                False, Too few or many argument(s).
+            if type(args[0]) is not list or type(args[1]) is not list
+                False, type mismatched.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <!--method name="new_node_with_constraint_args">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.new_node_with_constraint_args()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, u=None, spec=None, overwrite=False):
+        // FIXME: no description
+        //
+        // Check Sequences:
+        // FIXME: no check sequence
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            True, No requirement described.
+        </args-requirement>
+    </method-->
+
+    <method name="newnode">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.newnode()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method creates new node(s) with specified specs.
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+            spec, node_spec
+            can, candidates
+            ow, overwrite
+        </args-arrangement>
+        <args-requirement>
+            if not isinstance(args[0], CommandOption)
+                False, args[0] must be CommandOption.
+            if args[0].name not in ("spec", "node_spec")
+                False, args[0] must be option -spec.
+            if type(args[0].value) is list or type(args[0].value) is tuple
+                True, OK
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="newnodes">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.newnodes()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // See newnode
+        //
+        // Check Sequences:
+        // See newnode
+        </doc>
+        <args-arrangement>
+            refer=newnode
+        </args-arrangement>
+        <args-requirement>
+            refer=newnode
+        </args-requirement>
+    </method>
+
+    <method name="newedge">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.newedge()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method creates new edge(s) with specified specs.
+        //
+        // Check Sequences:
+        // See args requirement.
+        </doc>
+        <args-arrangement>
+            src, src_nodes
+            dst, dst_nodes
+            spec, edge_spec
+            overwrite, ow
+        </args-arrangement>
+        <args-requirement>
+            if not isinstance(args[0], CommandOption)
+                False, args[0] must be CommandOption.
+            if args[0].name not in ("src", "src_nodes")
+                False, args[0] must be option -src or -src_nodes.
+            if not isinstance(args[1], CommandOption)
+                False, args[0] must be CommandOption.
+            if args[1].name not in ("dst", "dst_nodes")
+                False, args[1] must be option -dst or -dst_nodes.
+            if not isinstance(args[2], CommandOption)
+                False, args[2] must be CommandOption.
+            if args[2].name not in ("spec", "edge_spec")
+                False, args[2] must be option -dst or -spec or edge_spec.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="newedges">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.newedges()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // See newedge
+        //
+        // Check Sequences:
+        // See newedge
+        </doc>
+        <args-arrangement>
+            refer=newedge
+        </args-arrangement>
+        <args-requirement>
+            refer=newedge
+        </args-requirement>
+    </method>
+
+    <method name="delnodes">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.delnodes()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method deletes nodes with specified spec.
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+            spec, node_spec
+            can, candidates
+        </args-arrangement>
+        <args-requirement>
+            if not isinstance(args[0], CommandOption)
+                False, args[0] must be CommandOption.
+            if args[0].name not in ("spec", "node_spec")
+                False, args[0] must be option -spec or -node_spec.
+            if len(args) == 1
+                True, OK
+            if not isinstance(args[1], CommandOption)
+                False, args[1] must be CommandOption.
+            if args[1].value is list or args[1].value is tuple
+                True, OK
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="deledges">
+        <doc>
+            // This presents requirements for arguments of method 'SpecificationGraph.deledges()'.
+            //
+            // General Description of Requirement for Arguments(self, caller, args):
+            // This method deletes edges with specified spec.
+            //
+            // Check Sequences:
+            // See args_requirement.
+        </doc>
+        <args-arrangement>
+            spec, edge_spec
+            can, candidates
+        </args-arrangement>
+        <args-requirement>
+            if not isinstance(args[0], CommandOption)
+                False, args[0] must be CommandOption.
+            if args[0].name not in ("spec", "edge_spec")
+                False, args[0] must be option -spec or -edge_spec.
+            if not isinstance(args[1], CommandOption)
+                False, args[1] must be CommandOption.
+            if args[1].value is list or args[1].value is tuple
+                True, OK
+            False, Argument error.
+        </args-requirement>
+    </method>
+
+    <method name="trivials">
+        <doc>
+            // This presents requirements for arguments of method 'SpecificationGraph.trivials()'.
+            //
+            // General Description of Requirement for Arguments(self, caller):
+            // This method selects trivial nodes.
+            //
+            // Check Sequences:
+            // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            True
+        </args-requirement>
+    </method>
+
+    <method name="print">
+        <doc>
+            This presents requirements for arguments of method 'SpecificationGraph.print()'.
+
+            See args_requirement.
+
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            // This presents requirements for arguments of method 'SpecificationGraph.print()'.
+            //
+            // General Description of Requirement for Arguments of print(self, caller, args):
+            // This deals with only args[0], for this, two or more arguments are ignored without notifying to caller.
+            // This method print object args[0] directly, except instance of 'list' given.
+            // If 'list' given, prints all members of list.
+            //
+            True
+        </args-requirement>
+    </method>
+
+    <method name="load">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.load()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, filename):
+        // This method loads graph file.
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+        </args-requirement>
+    </method>
+
+    <method name="save">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.save()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, filename):
+        // This method saves file
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+        </args-requirement>
+    </method>
+
+    <method name="save_file">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.save()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, filename):
+        // This method saves file
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            return True, OK.
+        </args-requirement>
+    </method>
+
+    <method name="getcwd">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.getcwd()'.
+        //
+        // General Description of Requirement for Arguments(self, caller):
+        // This method gets current directory.
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+        </args-requirement>
+    </method>
+
+    <method name="chdir">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.chdir()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, dir):
+        // This method changes current directory.
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+        </args-requirement>
+    </method>
+
+    <method name="modelcheck">
+        <doc>
+            This presents description of 'SpecificationGraph.modelcheck()'.
+
+            General Description of this method(self, caller, args):
+            Purpose is to analyze reachability specification in constructed network.
+            To analyze reachabilities in specification network, we have to the following steps.
+            (1) notate the reachability specification as follow,
+                spec = [type=="customer"](--[method=="tel"]-->[type=="receptor"]){1..3}--[method=="mail"]-->["type=="manager"];
+            (2) construct reachability network from reachability specification as follow,
+                modelcheck(--spec=spec, --construct);
+            (3) check reachability and report varification result as follow,
+                modelcheck(--spec=spec, --reachability, --segment={1..}, --depth=True);
+            (4) analyze specification network which causes unreachability and report as follow,
+                modelcheck(--spec=spec, --reachability, --loopback, --from={1..});
+                modelcheck(--spec=spec, --reachability, --loopback, --to={1..});
+                modelcheck(--spec=spec, --reachability, --loopback, --from={1..}, --to={1..});
+            Check Sequences:
+            See args requirement.
+
+        </doc>
+        <args-arrangement>
+            spec
+            con, construct, reach, reachability
+            seg, segment, loopback
+            depth, from
+            to
+        </args-arrangement>
+        <args-requirement>
+            // This method expects complete set of arguments and doesn't deal with args count.
+            // Any argument must be optional assignment.
+            if not isinstance(args[0], CommandOption)
+                return False, args[0] must be option assigned.
+            if not isinstance(args[1], CommandOption)
+                return False, args[1] must be option assigned.
+            if not isinstance(args[2], CommandOption)
+                return False, args[2] must be option assigned.
+            if not isinstance(args[3], CommandOption)
+                return False, args[3] must be option assigned.
+            if not isinstance(args[4], CommandOption)
+                return False, args[4] must be option assigned.
+
+            // option name of args[0] must be -spec
+            if args[0].name != "spec"
+                False, args[0] must be -spec.
+            // args[0] must be reachability specification or reference to it.
+            if not isinstance(args[0].value, ReachabilitySpecification)
+                if not isinstance(args[0].value.value, ReachabilitySpecification)
+                    return False, Invalid spec assigned.
+            fi
+            // if two arguments given, option name of args[1] must be -const[ruct].
+            if not args[1].name in ("con", "construct", "reach", "reachability")
+                return False, Invalid option for command.
+            // if -con specified,
+            if args[1].name in ("con", "construct")
+                return True, OK.
+            // if -reach specified,
+            if args[1].name in ("reach", "reachability")
+                if args[2].name in ("seg", "segment")
+                    if args[2].has_assignee
+                        if not isinstance(args[2].value, Numberset)
+                            if not isinstance(args[2].value, NetworkSymbol)
+                                return False, option -seg assigned invalid value.
+                            if not isinstance(args[2].value.value, Numberset)
+                                return False, option -seg assigned invalid value.
+                        fi
+                    fi
+                    if args[3].has_assignee
+                        if not isinstance(args[3].value, Numberset)
+                            if not isinstance(args[3].value, NetworkSymbol)
+                                return False, option -depth assigned invalid value.
+                            if not isinstance(args[3].value.value, Numberset)
+                                return False, option -depth assigned invalid value.
+                        fi
+                    fi
+                    return True, OK.
+                if args[2].name in ("loopback", "lb")
+                    if args[2].has_assignee
+                        return False, loopback option must not have assignee.
+                    if not args[3].name in ["from"]
+                        return False, args[3] must be option -from.
+                    if args[3].has_assignee
+                        if not isinstance(args[3].value, Numberset)
+                            if not isinstance(args[3].value, NetworkSymbol)
+                                return False, Invali option for args[3] -from.
+                            if not isinstance(args[3].value.value, Numberset)
+                                return False, Invali option for args[3] -from.
+                        fi
+                    fi
+                    if not args[4].name in ["to"]
+                        return False, args[4] must be option -to.
+                    if args[4].has_assignee
+                        if not isinstance(args[4].value, Numberset)
+                            if not isinstance(args[4].value, NetworkSymbol)
+                                return False, Invali option for args[4] -from.
+                            if not isinstance(args[4].value.value, Numberset)
+                                return False, Invali option for args[4] -from.
+                        fi
+                    fi
+                    return True, OK
+            return False, Invalid command for args[1].
+            //
+        </args-requirement>
+    </method>
+
+    <method name="set_node_attrib">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.set_node_attrib()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method changes current directory.
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+            spec, node_spec
+            can, candidates
+            attr, attrib, attributes
+        </args-arrangement>
+        <args-requirement>
+            // Checking procedure not implemented yet.
+            return True, OK.
+        </args-requirement>
+    </method>
+
+    <method name="import_xlsx">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.import_xlsx'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method imports graph data in xlsx-format.
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+            file, f
+            table, t
+        </args-arrangement>
+        <args-requirement>
+            // This method extends list assigned by args[0] with list assigned by args[1]
+
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="read_text_file">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.read_text_file()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, file):
+        // This method reads text file.
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            // This method extends list assigned by args[0] with list assigned by args[1]
+
+            if type(file) is not str
+                False, file must be str.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="sort">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.sort()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method sorts given list in order to default sorter.
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            // This method extends list assigned by args[0] with list assigned by args[1]
+
+            if len(args) != 1
+                False, Too few or too many argument(s).
+            if not type(args[0]) is list
+                False, args[0] must be list.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="intersect">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.intersect()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method generates intersect of two lists.
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            // This method extends list assigned by args[0] with list assigned by args[1]
+
+            if len(args) != 2
+                False, Too few or too many argument(s).
+            if not type(args[0]) is list or not type(args[1]) is list
+                False, args[0] and args[1] must be list.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="union">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.union()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method generates union of two list.
+        //
+        // Check Sequences:
+        // See args_requirement
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            // This method extends list assigned by args[0] with list assigned by args[1]
+
+            if len(args) != 2
+                False, Too few or too many argument(s).
+            if not type(args[0]) is list or not type(args[1]) is list
+                False, args[0] and args[1] must be list.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="push">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.push()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, C, c):
+        // This method pushes entry into lisst
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            // This method extends list assigned by args[0] with list assigned by args[1]
+
+            if len(args) != 1
+                False, Too few or too many argument(s).
+            if not type(args[0]) is list
+                False, args[0] must be list.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="pop">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.pop()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, C):
+        // This method pop entry at the end of list
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            // This method extends list assigned by args[0] with list assigned by args[1]
+
+            if len(args) != 1
+                False, Too few or too many argument(s).
+            if not type(args[0]) is list
+                False, args[0] must be list.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="extend">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.extend()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, A, B):
+        // This method extends list assigned by args[0] with list assigned by args[1]
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            // This method extends list assigned by args[0] with list assigned by args[1]
+
+            if len(args) != 2
+                False, Too few or too many argument(s).
+            if not type(args[0]) is list or not type(args[1]) is list
+                False, args[0] must be list.
+            if not type(args[1]) is list or not type(args[1]) is list
+                False, args[1] must be list.
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="concat">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.concat()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method concatinates given arguments.
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        </args-arrangement>
+        <args-requirement>
+            // This method extends list assigned by args[0] with list assigned by args[1]
+            True, OK
+        </args-requirement>
+    </method>
+
+    <method name="contains">
+        <doc>
+        // This presents requirements for arguments of method 'SpecificationGraph.concat()'.
+        //
+        // General Description of Requirement for Arguments(self, caller, args):
+        // This method confirms inclusion.
+        //
+        // Check Sequences:
+        // See args_requirement.
+        </doc>
+        <args-arrangement>
+        	c, cont, container
+        	e, elem, element
+        </args-arrangement>
+        <args-requirement>
+            // This method extends list assigned by args[0] with list assigned by args[1]
+            if not (isinstance(args[0].value, list) or isinstance(args[0].value, tuple))
+            	return False, args[0] must have list or tuple.
+            return True, OK.
+        </args-requirement>
+    </method>
+</class>

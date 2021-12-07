@@ -1,0 +1,8 @@
+function f() {
+    run("models/clear_model.nml");
+    run("models/create_uml_nodes.nml");
+    run("models/create_uml_edges.nml");
+    run("models/uml_members.nml");
+
+    run("models/class_diagram.nml");
+}

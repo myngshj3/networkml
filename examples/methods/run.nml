@@ -1,0 +1,6 @@
+function run(file) {
+    // read and run
+    script = read_text_file(file);
+    __run__ = interpret(script);
+    R = __run__();
+}

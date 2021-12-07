@@ -1,0 +1,11 @@
+function createSelfLoopEdges() {
+	N = collect_nodes();
+	E = [];
+	for n N {
+	  sle = (n, n);
+	  push(E, sle);
+	}
+	print(E);
+	F = nodes_product_to_edges(-can=E, -spec=());
+	print(F);
+}

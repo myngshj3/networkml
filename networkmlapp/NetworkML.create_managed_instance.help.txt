@@ -1,0 +1,7 @@
+
+NetworkML.create_managed_instance.help.txt
+
+This method created instance object managed by this method owner.
+
+Basically, method caller can use any method of this method owner.
+

@@ -1,0 +1,15 @@
+function f(table) {
+    i = 0;
+    row = table[i];
+	rows = cardinality(-collection=table);
+	print("header:");
+	print(row);
+	line = concat("rows: ", rows);
+	print(line);
+    i = i + 1;
+	while (i<rows) {
+        row = table[i];
+		print(row);
+	    i = i + 1;
+	}
+}

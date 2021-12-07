@@ -1,0 +1,13 @@
+Current actual achievement.
+ [1] Original object-oriented language,
+ which is syntactically customizable (current implementation is Java-like.).
+ This means a kind of notation of object is immediately converted to executable program.
+ [2] Natural language processor,
+ whose current implementation interprets text script and generates language structure
+ such like Lisp (tuple-wide evaluation enabled).
+ This means specification in proper grammar can be converted to definitions of classes,
+ instances and methods and execution statements.
+ [3] Reachability specification notation and reachability analyzer with SAT solver.
+ This means general purpose reachability specification notation has already developed.
+ This notation doesn’t depend on specific verification language such as SPIN.
+ [4] As my opened achievements, see achievement list.

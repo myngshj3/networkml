@@ -1,0 +1,21 @@
+// main loop method
+// description: loops until given symbol 'quit'
+global function main_loop() {
+    print("");
+    print("At first, type 'help();'.");
+    print("");
+    c = null;
+    f = 1;
+    while(f==1) {
+        c = $self.read_from_console("$self ");
+        if (c == "quit") {
+            print("quit input. exiting.");
+            f = 0;
+            break;
+        } elif (c != "") {
+            // print(c);
+            interpret(c);
+        }
+    }
+    print("main_loop exits.");
+}

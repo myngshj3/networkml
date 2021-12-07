@@ -1,0 +1,22 @@
+function modelcheck() {
+    // clear
+    print("Clearing model ...");
+    script = read_text_file("models/clear_model.nml");
+    clear = interpret(script);
+    clear();
+    // load nodes
+    print("Loading nodes ...");
+    script = read_text_file("models/create_uml_nodes.nml");
+    nodes = interpret(script);
+    nodes();
+    // load edges
+    print("Loading edges ...");
+    script = read_text_file("models/create_uml_edges.nml");
+    edges = interpret(script);
+    edges();
+    // model check
+    print("Checking reachabilities ...");
+    script = read_text_file("models/checkreach.nml");
+    checkreach = interpret(script);
+    checkreach();
+}

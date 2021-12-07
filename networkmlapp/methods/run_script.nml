@@ -1,0 +1,5 @@
+function run_script(script) {
+    // run
+    __run_script__ = interpret(script);
+    R = __run_script__();
+}

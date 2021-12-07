@@ -1,0 +1,6 @@
+function f() {
+    N = collect_nodes(-spec, -can, -data);
+    M = delnodes(-spec, -can=N);
+    //print("deleted nodes:");
+    //print(M);
+}
