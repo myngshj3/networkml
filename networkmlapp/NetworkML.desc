@@ -6,9 +6,9 @@
     #                     "manager-methods",
     #                     "generator-methods",
     #                     "instance-methods"],
-    "manager-introduction-text-file": "NetworkML.manager.help.txt",
-    "generator-introduction-text-file": "NetworkML.generator.help.txt",
-    "instance-introduction-text-file": "NetworkML.instance.help.txt",
+    "manager-introduction-text-file": "d:/projects/GitHub/networkml/networkmlapp/NetworkML.manager.help.txt",
+    "generator-introduction-text-file": "d:/projects/GitHub/networkml/networkmlapp/NetworkML.generator.help.txt",
+    "instance-introduction-text-file": "d:/projects/GitHub/networkml/networkmlapp/NetworkML.instance.help.txt",
 
     "managed-classes": {
         "1": {
@@ -39,7 +39,7 @@
         "create_managed_instance": {
             "equation": "lambda ao, c, eo, ca, ea: eo.create_managed_instance(ao, ca[0])",
             "globally": true,
-            "help-text-file": "NetworkML.create_managed_instance.help.txt"
+            "help-text-file": "d:/projects/GitHub/networkml/networkmlapp/NetworkML.create_managed_instance.help.txt"
         },
         "managed_classes": {
             "equation": "lambda ao, c, eo, ca, ea: eo.get_managed_classes()",

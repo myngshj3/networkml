@@ -53,33 +53,13 @@ def main_loop(client):
     client.finalize()
 
 
-def main(args):
+def main():
     home_dir = os.getenv("NMLCLIENT_HOME")
-    if len(home_dir) == 0:
+    if home_dir is None:
         config_file = "nmlclient.conf"
     else:
         config_file = home_dir + "/" + "nmlclient.conf"
-    if len(args) == 3 and args[1] == "-f":
-        config_file = args[2]
-        config = GU.read_json(config_file)
-    elif len(args) == 1:
-        config = GU.read_json(config_file)
-    else:
-        print(args, "ignored. using default config.")
-        config = GU.read_json(config_file)
-    hostname = config['hostname']
-    port = config['port']
-    opt_pat = r"^\-(hostname=(?P<hostname>.+)|port=(?P<port>\d+))$"
-    for a in args[1:]:
-        m, g = GU.rematch(opt_pat, a)
-        if m is None:
-            print(a, "is ignored.")
-        else:
-            if g['hostname'] is not None:
-                hostname = g['hostname']
-            elif g["port"] is not None:
-                port = int(g["port"])
-
+    config = GU.read_json(config_file)
     l = SentenceSyntacticAnalyzer()
     l.build()
     parser = SentenceParser(l)
@@ -91,4 +71,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    main()
