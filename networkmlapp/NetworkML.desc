@@ -90,20 +90,20 @@
             "globally": true
         },
         "function find_reachable_paths": {
-            "script-file": "methods/find_reachable_paths.nml",
+            "script-file": "d:/projects/GitHub/networkml/networkmlapp/methods/find_reachable_paths.nml",
             "globally": true
         },
         "run": {
             "globally": true,
-            "script-file": "methods/run.nml"
+            "script-file": "d:/projects/GitHub/networkml/networkmlapp/methods/run.nml"
         },
         "run_script": {
             "globally": true,
-            "script-file": "methods/run_script.nml"
+            "script-file": "d:/projects/GitHub/networkml/networkmlapp/methods/run_script.nml"
         },
         "main_loop": {
             "globally": true,
-            "script-file": "methods/NetworkML.main_loop.nml"
+            "script-file": "d:/projects/GitHub/networkml/networkmlapp/methods/NetworkML.main_loop.nml"
         }
     },
     "generator-methods": {
@@ -145,15 +145,15 @@
         },
         "run": {
             "globally": true,
-            "script-file": "methods/run.nml"
+            "script-file": "d:/projects/GitHub/networkml/networkmlapp/methods/run.nml"
         },
         "run_script": {
             "globally": true,
-            "script-file": "methods/run_script.nml"
+            "script-file": "d:/projects/GitHub/networkml/networkmlapp/methods/run_script.nml"
         },
         "main_loop": {
             "globally": true,
-            "script-file": "methods/NetworkML.main_loop.nml"
+            "script-file": "d:/projects/GitHub/networkml/networkmlapp/methods/NetworkML.main_loop.nml"
         }
     },
     "instance-methods": {
@@ -191,15 +191,15 @@
         },
         "run": {
             "globally": true,
-            "script-file": "methods/run.nml"
+            "script-file": "d:/projects/GitHub/networkml/networkmlapp/methods/run.nml"
         },
         "run_script": {
             "globally": true,
-            "script-file": "methods/run_script.nml"
+            "script-file": "d:/projects/GitHub/networkml/networkmlapp/methods/run_script.nml"
         },
         "main_loop": {
             "globally": true,
-            "script-file": "methods/NetworkML.main_loop.nml"
+            "script-file": "d:/projects/GitHub/networkml/networkmlapp/methods/NetworkML.main_loop.nml"
         }
     },
 

@@ -1,5 +1,6 @@
 # -*- coding:utf-8 -*-
 
+import os
 import socket
 import sys
 import re
@@ -56,7 +57,11 @@ class Consensus:
 
     def __init__(self, config=None):
         if config is None:
-            config = "consensus.conf"
+            home_dir = os.getenv("NETWORKML_HOME")
+            if home_dir is None:
+                config = "consensus.conf"
+            else:
+                config = home_dir + "/" + "consensus.conf"
         with open(config, "r") as f:
             self._config = json.load(f)
 

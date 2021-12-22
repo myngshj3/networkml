@@ -286,18 +286,13 @@ class SpecificationWorld(NetworkGenericWorld):
             func(caller)
 
 
-def main(args):
-    if len(args) == 1:
-        config = GU.read_json("nmlserver.conf")
-    elif len(args) == 1 and args[1] == "-help":
-        global _help_text
-        print(_help_text)
-        return
-    elif len(args) == 3 and args[1] == "-config":
-        config = GU.read_json(args[2])
+def main():
+    home_dir = os.getenv("NETWORKML_HOME")
+    if home_dir is None:
+        config_file = "networkml.conf"
     else:
-        print("args", args[1:], "ignored.")
-        config = GU.read_json("nmlserver.conf")
+        config_file = home_dir + "/" + "networkml.conf"
+    config = GU.read_json(config_file)
 
     # construct initial network
     networkml_config = config['networkml-config']
@@ -329,4 +324,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    main()

@@ -14,21 +14,21 @@ import traceback
 # from enum import Enum
 
 # import our modules
-from generic import GenericEvaluatee
-from error import NetworkError, NetworkParserError, NetworkLexerError
-from validator import Validatee, ArithmeticModulusEvaluatee, ArithmeticMultiplicableEvaluatee
-from validator import ArithmeticSubtractalEvaluatee, ArithmeticBinaryEvaluatee, ArithmeticAdditionalEvaluatee
-from validator import ArithmeticDivideEvaluatee, ArithmeticBinaryEvaluatee
-from validator import BooleanNegatee, BooleanBinaryEvaluatee
-from validator import BooleanConjunctiveEvaluatee, BooleanDisjunctiveEvaluatee, BooleanGreaterOrEqualsEvaluatee
-from validator import BooleanGreaterThanEvaluatee, BooleanLessOrEqualsEvaluatee, BooleanLessThanEvaluatee
-from validator import BooleanEqualityEvaluatee, BooleanDifferenceEvaluatee, BooleanMatchee, BooleanUnmatchee
-from validator import BooleanUnaryEvaluatee
-from network import NetworkClassInstance, NetworkMethodCaller, WhileStatement, IfElifElseStatement
-from network import ReachabilitySpecification, NetworkCallable, NetworkConditionalArg, NetworkBreak
-from network import NetworkMethod, ForeachStatement, NetworkSubstituter, HierarchicalRefer, NetworkFetcher
-from network import NetworkConditionValidatee, ReachNetworkConstructor, Interval, SimpleVariable, NetworkReturn
-from network import Interval, Numberset, NumbersetOperator, CommandOption
+from networkml.generic import GenericEvaluatee
+from networkml.error import NetworkError, NetworkParserError, NetworkLexerError
+from networkml.validator import Validatee, ArithmeticModulusEvaluatee, ArithmeticMultiplicableEvaluatee
+from networkml.validator import ArithmeticSubtractalEvaluatee, ArithmeticBinaryEvaluatee, ArithmeticAdditionalEvaluatee
+from networkml.validator import ArithmeticDivideEvaluatee, ArithmeticBinaryEvaluatee
+from networkml.validator import BooleanNegatee, BooleanBinaryEvaluatee
+from networkml.validator import BooleanConjunctiveEvaluatee, BooleanDisjunctiveEvaluatee, BooleanGreaterOrEqualsEvaluatee
+from networkml.validator import BooleanGreaterThanEvaluatee, BooleanLessOrEqualsEvaluatee, BooleanLessThanEvaluatee
+from networkml.validator import BooleanEqualityEvaluatee, BooleanDifferenceEvaluatee, BooleanMatchee, BooleanUnmatchee
+from networkml.validator import BooleanUnaryEvaluatee
+from networkml.network import NetworkClassInstance, NetworkMethodCaller, WhileStatement, IfElifElseStatement
+from networkml.network import ReachabilitySpecification, NetworkCallable, NetworkConditionalArg, NetworkBreak
+from networkml.network import NetworkMethod, ForeachStatement, NetworkSubstituter, HierarchicalRefer, NetworkFetcher
+from networkml.network import NetworkConditionValidatee, ReachNetworkConstructor, Interval, SimpleVariable, NetworkReturn
+from networkml.network import Interval, Numberset, NumbersetOperator, CommandOption
 
 
 class NetworkLexer:
