@@ -6,13 +6,13 @@ import ply.yacc as yacc
 import sys
 import traceback
 import networkx as nx
-import yaml
 import openpyxl
 import os
 import json
 import sys
 import inspect
 from enum import Enum
+import yaml
 
 # project modules
 from networkml.error import NetworkError, NetworkNotImplementationError
@@ -22,9 +22,9 @@ from networkml.network import ReachabilitySpecification, Numberset, CommandOptio
 from networkml.network import NetworkReturnValue, NetworkNothing
 from networkml.validator import GenericEvaluatee, UnaryEvaluatee, BinaryEvaluatee, TrueEvaluatee
 import networkml.genericutils as GU
+from networkml.generic import debug
 
 
-# yaml's presettings for load/dump
 def represent_odict(dumper, instance):
     return dumper.represent_mapping('tag:yaml.org,2002:map', instance.items())
 
@@ -191,8 +191,8 @@ class SpecificationGraph(nx.MultiDiGraph):
             root = xml.getroot()
             self._spec_doc = root
         except Exception as ex:
-            print(ex)
-            print("{} not found. We cannot provide document of our class.".format(descfile))
+            debug(ex)
+            debug("{} not found. We cannot provide document of our class.".format(descfile))
 
     def load_settings(self):
         self.construct_spec_doc()
@@ -231,7 +231,7 @@ class SpecificationGraph(nx.MultiDiGraph):
                     puts = True
                     break
             if not puts:
-                print("{} was ignored.".format(a))
+                debug("{} was ignored.".format(a))
         return new_args
 
     def build_args_checker(self, caller, args, method_sig):
@@ -322,10 +322,10 @@ class SpecificationGraph(nx.MultiDiGraph):
                         if_depth.remove(if_step)
                         # print(if_step)
                     continue
-                print("syntax error at line {} ignored.:{}".format(i, e))
+                debug("syntax error at line {} ignored.:{}".format(i, e))
             return program
         except Exception as ex:
-            print("{}: error. {}".format(i, step))
+            debug("{}: error. {}".format(i, step))
         finally:
             pass
 
@@ -343,7 +343,7 @@ class SpecificationGraph(nx.MultiDiGraph):
                 if a.has_assignee:
                     value = a.value
                     if isinstance(value, NetworkSymbol):
-                        value = value.value
+                        value = caller.accessor.get(caller, value.symbol)
                     opt = CommandOption("--{}".format(a.name), value, has_assignee=True, symbolic_assignee=False)
                     a = opt
             new_args.append(a)
@@ -409,15 +409,15 @@ class SpecificationGraph(nx.MultiDiGraph):
                 print_doc = False
                 print_req = True
             else:
-                print("--help=(doc|requirement)")
+                debug("--help=(doc|requirement)")
                 print_doc = True
                 print_req = True
-            print(sig)
+            caller.print_buf(sig)
             if print_doc:
-                print("doc:")
-                print(doc)
+                caller.print_buf("doc:")
+                caller.print_buf(doc)
             if print_req:
-                print(eqs)
+                caller.print_buf(eqs)
             rtn = NetworkReturnValue(args, True, "", cancel=True)
             return rtn
         else:
@@ -800,7 +800,7 @@ class SpecificationGraph(nx.MultiDiGraph):
         elif loopback is not None:
             return self.analyze_reach_loopback(caller, spec, _from, _to)
         else:
-            print("Invalid arguments")
+            debug("Invalid arguments")
             return None
         #     segment = len(keys) - 1
         #     S = Numberset(1)
@@ -1186,7 +1186,7 @@ class SpecificationGraph(nx.MultiDiGraph):
                 specs = args[0].value
             else:
                 specs = ()
-            print("specs:", specs)
+            debug("specs:", specs)
             if args[1].has_assignee:
                 candidates = args[1].value
             else:
@@ -1197,7 +1197,7 @@ class SpecificationGraph(nx.MultiDiGraph):
                 overwrite = False
             if len(candidates) == 0:
                 candidates = (self.new_node_id(caller))
-            print("candidatates:", candidates)
+            debug("candidatates:", candidates)
             for n in candidates:
                 if n in self.N.nodes and not overwrite:
                     continue
@@ -1270,7 +1270,7 @@ class SpecificationGraph(nx.MultiDiGraph):
             else:
                 overwrite = False
             if U is None or V is None:
-                print("Insufficient node specified.")
+                debug("Insufficient node specified.")
                 return
             E = []
             for u in U:
@@ -1392,37 +1392,38 @@ class SpecificationGraph(nx.MultiDiGraph):
             if ret is not None:
                 return ret
         for arg in args:
-            print(arg)
+            debug(arg)
+            caller.print_buf.append(arg)
 
     def load(self, caller, filename) -> None:
         try:
             with open(filename, "r") as f:
-                # N = nx.read_yaml(filename)
                 N = yaml.load(f, Loader=yaml.Loader)
+                # N = nx.read_yaml(filename)
                 self.init(N, filename)
         except Exception as ex:
-            print("file open failed. no infection to current graph.")
+            debug("file open failed. no infection to current graph.")
             raise NetworkError("load file failed:{}".format(filename), ex)
 
     def save(self, caller, args) -> None:
         try:
             if len(args) == 0:
                 if self._filename is None:
-                    print("filename not specified")
+                    debug("filename not specified")
                 else:
-                    # nx.write_yaml(self.N, self.filename)
-                    with open(filename, "w") as f:
+                    with open(self.filename, "w") as f:
                         yaml.dump(self.N, f)
+                    # nx.write_yaml(self.N, self.filename)
                     # self.dirty = False
             else:
                 filename = args[0]
                 filename = os.getcwd() + "\\" + "{}".format(filename)
-                # nx.write_yaml(self.N, filename)
                 with open(filename, "w") as f:
                     yaml.dump(self.N, f)
-                    self._filename = filename
+                # nx.write_yaml(self.N, filename)
+                self._filename = filename
         except Exception as ex:
-            print("file save failed. no infection to current graph.")
+            debug("file save failed. no infection to current graph.")
             raise NetworkError("save file failed:({})".format(args), ex)
 
     def getcwd(self, caller):
@@ -1510,7 +1511,7 @@ class SpecificationGraph(nx.MultiDiGraph):
                 return rtn
 
         except Exception as ex:
-            print("modelcheck error with args:{}".format(args))
+            debug("modelcheck error with args:{}".format(args))
             raise NetworkError("modelcheck error:{}".format(args), ex)
 
     def set_node_attrib(self, caller, args):
@@ -1524,7 +1525,7 @@ class SpecificationGraph(nx.MultiDiGraph):
         for n in N:
             for a in attrib:
                 self.N.nodes[n][a.l] = a.r
-                print(n, "->", a.l, "=", a.r)
+                debug(n, "->", a.l, "=", a.r)
         return N
 
     def import_xlsx(self, caller, args):
@@ -1631,7 +1632,8 @@ class SpecificationGraph(nx.MultiDiGraph):
                 tables.append(table)
             return tables
         except Exception as ex:
-            print(ex)
+            debug(ex)
+            raise ex
 
     def read_text_file(self, caller, file):
         with open(file, "r") as f:

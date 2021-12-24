@@ -70,7 +70,7 @@ def main():
     if home_dir is None:
         config_file = "nmlserver.conf"
     else:
-        config_file = home_dir + "/" + "nmlserver.conf"
+        config_file = home_dir + "\\" + "nmlserver.conf"
     config = GU.read_json(config_file)
 
     # construct initial network

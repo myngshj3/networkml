@@ -2,10 +2,10 @@
 
 import re
 import sys
-from network import NetworkGenericWorld
-from network import NetworkMethod
-from generic import GenericValueHolder
-from requirementparser import RequirementParser
+from networkml.network import NetworkGenericWorld
+from networkml.network import NetworkMethod
+from networkml.generic import GenericValueHolder
+from networkml.requirementparser import RequirementParser
 
 
 class RequirementInterpreter:

@@ -16,8 +16,23 @@ from networkml.error import NetworkError, NetworkMethodError, NetworkParseError,
 from networkml.error import NetworkReferenceError
 from networkml.generic import GenericCallable, GenericComponent, GenericValueHolder, Comparator, REPattern
 from networkml.generic import GenericValidator, GenericDescription
+from networkml.generic import debug, is_debug_mode, is_traceback
 import networkml.genericutils as GU
 from networkml.validator import GenericEvaluatee, BinaryEvaluatee, UnaryEvaluatee, GenericValidatorParam, TrueEvaluatee
+import networkml.interpretermanager as IM
+
+
+_armer = None
+
+
+def get_armer():
+    global _armer
+    return _armer
+
+
+def set_armer(armer):
+    global _armer
+    _armer = armer
 
 
 class NetworkComponent(GenericComponent):
@@ -744,21 +759,78 @@ class NetworkTextSerializer(NetworkSerializer):
         self._opened = False
 
 
+    #     self._signature = signature
+    #     self._description = description
+    #     self._script = script
+    #     self._note = note
+    #     pass
+    #
+    # @property
+    # def signature(self):
+    #     return self._signature
+    #
+    # @property
+    # def description(self):
+    #     return self._description
+    #
+    # def set_description(self, desc):
+    #     self._description = desc
+    #
+    # @property
+    # def script(self):
+    #     return self._script
+    #
+    # def set_script(self, script):
+    #     # print(script)
+    #     self._script = script
+    #
+    # @property
+    # def note(self):
+    #     return self._note
+    #
+    # def set_note(self, note):
+    #     self._note = note
+    #
+    # def analyze(self):
+    #     pass
+    #
+    # def serialize(self, serializer):
+    #     pass
+    #
+    # def deserialize(self, serializer):
+    #     pass
+
+
+# FIXME well-consider adequate interface for managing and representing document.
+class NetworkDocument:
+
+    def __init__(self, obj, *args, **kwargs):
+        self._obj = obj
+
+    @property
+    def desc(self):
+        return None
+
+
+# FIXME currently, no implementaion provided.
+#       document management feature is one of important features in this framework.
 class NetworkDocumentable:
 
+    # FIXME doucment representation is not fixed.
     @property
     def document(self):
         return None
 
 
-class NetworkCallable(NetworkComponent, GenericCallable, NetworkDocumentable):
+class NetworkBaseCallable(NetworkComponent, GenericCallable):
 
     Lasted = 0
     ControlBroken = 1
     ControlReturned = 2
+    REPORT_BREAK_POINT = "report_break_point"
 
-    def __init__(self, owner, args=None, closer=False, cancel_stacking=False, safe_call=False, **kwargs):
-        super().__init__(owner)
+    def __init__(self, owner, args=(), closer=False, cancel_stacking=False, safe_call=False, **kwargs):
+        super().__init__(owner, args=args)
         self._args = args
         self._closer = closer
         self._cancel_stacking = cancel_stacking
@@ -767,9 +839,6 @@ class NetworkCallable(NetworkComponent, GenericCallable, NetworkDocumentable):
     @property
     def args(self):
         return self._args
-
-    def set_args(self, args):
-        self._args = args
 
     @property
     def closer(self):
@@ -783,10 +852,10 @@ class NetworkCallable(NetworkComponent, GenericCallable, NetworkDocumentable):
     def cancel_stacking(self):
         return self._cancel_stacking
 
-    def set_owners(self, caller, args):
-        for a in args:
-            if isinstance(a, NetworkVariable):
-                a.set_owner(caller)
+    # def set_owners(self, caller, args):
+    #     for a in args:
+    #         if isinstance(a, NetworkVariable):
+    #             a.set_owner(caller)
 
     def callee_type(self):
         return self
@@ -800,57 +869,77 @@ class NetworkCallable(NetworkComponent, GenericCallable, NetworkDocumentable):
             raise NetworkNotImplementationError("{}.__call__() without argument.".format(type(self)))
         caller = args[0]
         if len(args) == 1:
-            args = []
+            args = ()
         else:
             args = args[1]
-        result = self.args_impl(caller, args)
-        if isinstance(result, NetworkReturnValue):
-            if result.fail:
-                print(result.reasons)
-                return result.value
-            else:
-                if result.cancel:
-                    print(result.reasons)
-                    return result.value
-                else:
-                    args = result.value
-        else:
-            args = result
         report_break_point = True
-        if "report_break_point" in kwargs.keys():
-            report_break_point = kwargs["report_break_point"]
-        context_id = None
+        if self.REPORT_BREAK_POINT in kwargs.keys():
+            report_break_point = kwargs[self.REPORT_BREAK_POINT]
+        stack_id = None
+        st = caller.deepest_stack_id(caller)
+        # print("**** PRE  STACK[{}] VARS:{}".format(st, caller.get_stack(caller, st)[caller.VARS]))
         if not self.cancel_stacking and not isinstance(caller, NetworkClassInstance):
-            context_id = caller.push_context()
+            stack_id = caller.push_stack(caller)
         try:
-            return self.call_impl(caller, args)
+            callee, actual_caller, actual_args = self.pre_call_impl(caller, args)
+            # if caller != actual_caller:
+            #     print("caller {} swapped to {}".format(caller, actual_caller))
+            # if args != actual_args:
+            #     print("args {} swapped to {}".format("(..{})".format(len(args)), "(..{})".format(len(actual_args))))
+            # print("Method {}({}) running...".format(callee, (actual_caller, actual_args)))
+            ret = callee(actual_caller, actual_args)
+            # print("done.")
+            return ret
         except Exception as ex:
-            raise NetworkError("{}({}) call failed.".format(self, caller), ex)
+            if is_traceback():
+                debug("Tracebacking...")
+                traceback.format_exc()
+            raise NetworkError("{}{}({}, {}) call failed.".format(type(self), self, caller, args), ex)
         finally:
             break_info = caller.break_point
             if not self.cancel_stacking and not isinstance(caller, NetworkClassInstance):
-                caller.pop_context(context_id)
+                caller.pop_stack(caller, stack_id)
+            st = caller.deepest_stack_id(caller)
+            # print("**** POST STACK[{}] VARS:{}".format(st, caller.get_stack(caller, st)[caller.VARS]))
             if report_break_point:
-                caller.set_break_point(break_info)
+                caller.set_break_point(caller, break_info)
+
+    def pre_call_impl(self, caller, args):
+        # sub class must implement this method.
+        raise NetworkNotImplementationError("{}.pre_call_impl not implemented.".format(self))
+
+
+class NetworkCallable(NetworkBaseCallable, GenericCallable):
+
+    def __init__(self, owner, args=(), closer=False, cancel_stacking=False, safe_call=False, **kwargs):
+        super().__init__(owner, args=args, close=closer, cancel_stacking=cancel_stacking, safe_call=safe_call)
+
+    def do_nothing(self, caller, args):
+        pass
+
+    def pre_call_impl(self, caller, args):
+        return self.call_impl, caller, self.args_impl(caller, args)
 
     def args_impl(self, caller, args, **kwargs):
         new_args = []
         for a in args:
-            if isinstance(a, NetworkCallable):
+            # print("** pre  ** ", type(a), a, "of a", type(caller), caller)
+            # print("** post ** ", type(a), a, "of a", type(caller), caller)
+            if isinstance(a, NetworkSymbol):
+                x = caller.accessor.get(caller, a.symbol)
+            elif isinstance(a, NetworkCallable):
                 x = a(caller)
             elif isinstance(a, GenericEvaluatee):
                 x = a.evaluate(caller)
-            elif isinstance(a, NetworkSymbol):
-                x = a.value
             elif isinstance(a, GenericValueHolder):
                 x = a.value
             else:
                 x = a
             new_args.append(x)
-        return new_args
+        return tuple(new_args)
 
     def call_impl(self, caller, args, **kwargs):
-        raise NetworkNotImplementationError("{}.__call__() not implemented.".format(type(self)))
+        self.do_nothing(caller, args)
 
 
 class NetworkInvoker:
@@ -862,140 +951,96 @@ class NetworkInvoker:
         raise NetworkNotImplementationError("Not implemented")
 
 
-class HierachicalHolder(NetworkComponent):
-
-    def __init__(self, owner):
-        super().__init__(owner)
-        self._member_dict = {}
-        self._name_duplicated = False
-        self._indices = []
-
-    def set_owner(self, owner):
-        super().set_owner(owner)
-        for m in self._member_dict.values():
-            m.set_owner(owner)
-
-    @property
-    def name_duplicated(self):
-        return self._name_duplicated
-
-    def append_member(self, name, member):
-        if name in self._member_dict.keys():
-            print("Name duplicated:{}".format(name))
-            self._name_duplicated = True
-        self._member_dict[name] = member
-
-    def append_index(self, index):
-        self._indices.append(index)
-
-    def has_member(self, name):
-        return name in self._member_dict.keys()
-
-    def get_member(self, name):
-        if name in self._member_dict.keys():
-            return self._member_dict[name]
-        else:
-            return None
-
-
-class NetworkDocument:
-
-    def __init__(self, signature, description="", script="", note=""):
-        self._signature = signature
-        self._description = description
-        self._script = script
-        self._note = note
-        pass
-
-    @property
-    def signature(self):
-        return self._signature
-
-    @property
-    def description(self):
-        return self._description
-
-    def set_description(self, desc):
-        self._description = desc
-
-    @property
-    def script(self):
-        return self._script
-
-    def set_script(self, script):
-        # print(script)
-        self._script = script
-
-    @property
-    def note(self):
-        return self._note
-
-    def set_note(self, note):
-        self._note = note
-
-    def analyze(self):
-        pass
-
-    def serialize(self, serializer):
-        pass
-
-    def deserialize(self, serializer):
-        pass
+# FIXME this class no longer needed.
+# class HierachicalHolder(NetworkComponent):
+#
+#     def __init__(self, owner):
+#         super().__init__(owner)
+#         self._member_dict = {}
+#         self._name_duplicated = False
+#         self._indices = []
+#
+#     def set_owner(self, owner):
+#         super().set_owner(owner)
+#         for m in self._member_dict.values():
+#             m.set_owner(owner)
+#
+#     @property
+#     def name_duplicated(self):
+#         return self._name_duplicated
+#
+#     def append_member(self, name, member):
+#         if name in self._member_dict.keys():
+#             debug("Name duplicated:{}".format(name))
+#             self._name_duplicated = True
+#         self._member_dict[name] = member
+#
+#     def append_index(self, index):
+#         self._indices.append(index)
+#
+#     def has_member(self, name):
+#         return name in self._member_dict.keys()
+#
+#     def get_member(self, name):
+#         if name in self._member_dict.keys():
+#             return self._member_dict[name]
+#         else:
+#             return None
 
 
-class NetworkMethodDocument(NetworkDocument):
+# class NetworkMethodDocument(NetworkDocument):
+#
+#     def __init__(self, sig, method, *args, **kwargs):
+#         super().__init__(sig)
+#         self._method = method
+#         self._arg_types = []
+#         self._args = args
+#         self._kwargs = kwargs
+#         self._steps = []
+#         self._callable = True
+#         self._args_requirement = ""
+#
+#     @property
+#     def args_requirement(self):
+#         return self._args_requirement
+#
+#     def set_args_requirement(self, req):
+#         self._args_requirement = req
+#
+#     @property
+#     def callable(self):
+#         return self._callable
+#
+#     @property
+#     def arg_count(self):
+#         return len(self._arg_types)
+#
+#     @property
+#     def arg_types(self):
+#         return self._arg_types
+#
+#     @property
+#     def method(self):
+#         return self._method
+#
+#     def analyze(self):
+#         # FIXME implement method analysis statement(s) here
+#         # argument analysis
+#         for a in self.method.args:
+#             self._arg_types.append(type(a))
+#         # arg name duplication
+#         args = []
+#         for a in self.method.args:
+#             if a not in args:
+#                 args.append(a)
+#         if len(args) == len(self.method.args):
+#             self._callable = True
+#         # process information
+#         for i, s in enumerate(self.method.callees):
+#             self._steps.append((i, s.callee_type))
 
-    def __init__(self, sig, method, *args, **kwargs):
-        super().__init__(sig)
-        self._method = method
-        self._arg_types = []
-        self._args = args
-        self._kwargs = kwargs
-        self._steps = []
-        self._callable = True
-        self._args_requirement = ""
 
-    @property
-    def args_requirement(self):
-        return self._args_requirement
-
-    def set_args_requirement(self, req):
-        self._args_requirement = req
-
-    @property
-    def callable(self):
-        return self._callable
-
-    @property
-    def arg_count(self):
-        return len(self._arg_types)
-
-    @property
-    def arg_types(self):
-        return self._arg_types
-
-    @property
-    def method(self):
-        return self._method
-
-    def analyze(self):
-        # FIXME implement method analysis statement(s) here
-        # argument analysis
-        for a in self.method.args:
-            self._arg_types.append(type(a))
-        # arg name duplication
-        args = []
-        for a in self.method.args:
-            if a not in args:
-                args.append(a)
-        if len(args) == len(self.method.args):
-            self._callable = True
-        # process information
-        for i, s in enumerate(self.method.callees):
-            self._steps.append((i, s.callee_type))
-
-
-class NetworkProperty(NetworkComponent):
+class NetworkProperty(NetworkCallable):
 
     def __init__(self, owner, name, writee=False, get_stmts=(), set_stmts=()):
         super().__init__(owner)
@@ -1024,14 +1069,14 @@ class NetworkMethod(NetworkCallable):
         Break = "break"
         Exception = "exception"
 
-    def __init__(self, owner, signature, args=(), stmts=(), *otherargs, **kwargs):
-        super().__init__(owner, args=args, safe_call=True)
+    def __init__(self, owner, signature, args=(), stmts=(), cancel_stacking=False, *otherargs, **kwargs):
+        super().__init__(owner, args=args, safe_call=True, cancel_stacking=cancel_stacking)
         self._signature = signature
         self._clazz = None
         self._callees = []
-        self._document = NetworkMethodDocument(signature, self)
-        if "lexdata" in kwargs.keys():
-            self._document.set_script(kwargs["lexdata"])
+        # self._document = NetworkMethodDocument(signature, self)
+        # if "lexdata" in kwargs.keys():
+        #     self._document.set_script(kwargs["lexdata"])
         self._globally = False
         if "globally" in kwargs.keys():
             self._globally = kwargs["globally"]
@@ -1041,6 +1086,11 @@ class NetworkMethod(NetworkCallable):
     @property
     def signature(self):
         return self._signature
+
+    def set_owner(self, owner):
+        super().set_owner(owner)
+        for s in self._callees:
+            s.set_owner(owner)
 
     @property
     def globally(self):
@@ -1087,19 +1137,19 @@ class NetworkMethod(NetworkCallable):
         for c in self.callees:
             rtn = c(caller)
             if isinstance(rtn, NetworkError):
-                print("Error Captured.")
-                print(rtn)
-                print("resumed")
+                debug("Error Captured.")
+                debug(rtn)
+                debug("resumed")
                 continue
             elif isinstance(rtn, NetworkReturnValue):
-                print("Special dealing with:")
-                print(rtn)
+                debug("Special dealing with:")
+                debug(rtn)
                 continue
             if caller.break_point is not None:
-                print("caller.break_point:", caller.break_point)
+                debug("caller.break_point:", caller.break_point)
                 if isinstance(rtn, NetworkReturnValue):
-                    print("Exception occurred, but safely resumed.")
-                    print(rtn)
+                    debug("Exception occurred, but safely resumed.")
+                    debug(rtn)
                     return rtn.reasons
                 elif isinstance(rtn, GenericValueHolder):
                     return rtn.value
@@ -1107,129 +1157,601 @@ class NetworkMethod(NetworkCallable):
                     return rtn
         return rtn
 
-    def call_impl(self, caller, args, **kwargs):
-        is_callable = self.callable
-        if is_callable is not None and not is_callable:
-            raise NetworkError("{}.{} is not in callable state.".format(self.clazz, self.signature))
-        if is_callable is None:
-            print("Cannot analyze argumenet for {}.{}() ".format(self.owner, self.signature))
-        if self.safe_call:
-            try:
-                return self.actual_call_impl(caller, args)
-            except Exception as ex:
-                print("Internal Error occurred, but safely resumed.")
-                print(ex)
-                return self.actual_call_impl(caller, args)
-        else:
-            return self.actual_call_impl(caller, args)
+    def pre_call_impl(self, caller, args):
+        # attach actual caller, if needed.
+        # FIXME security controll should be implemented.
+        return self.call_impl, caller, self.args_impl(caller, args)
+        # No need to implement this method.
 
     def args_impl(self, caller, args, **kwargs):
         # FIXME argument adequateness varifiable here
         # new_args = []
         if len(args) < len(self.args):
-            return NetworkReturnValue(args, False, "At least {} args needed, but {} args given.".format(len(self.args), len(args)))
+            raise NetworkError("Method {} needs t least {} args, but {} given.".format(self, len(self.args), len(args)))
         args = super().args_impl(caller, args[:len(self.args)])
         for a, x in zip(self.args, args):
             caller.accessor.set(caller, a, x)
-        # for a, b in zip(self.args, args[:len(self.args)]):
-        #     if isinstance(b, NetworkMethodCaller):
-        #         x = b(caller)
-        #     elif isinstance(b, NetworkSymbol):
-        #         x = b.value
-        #     elif isinstance(b, GenericValueHolder):
-        #         x = b.value
-        #     else:
-        #         x = b
-        #     caller.accessor.set(caller, a, x)
         return args
 
+    def call_impl(self, caller, args, **kwargs):
+        is_callable = self.callable
+        if is_callable is not None and not is_callable:
+            raise NetworkError("{}.{} is not in callable state.".format(self.clazz, self.signature))
+        if is_callable is None:
+            debug("Cannot analyze argumenet for {}.{}() ".format(self.owner, self.signature))
+        if self.safe_call:
+            try:
+                return self.actual_call_impl(caller, args)
+            except Exception as ex:
+                debug("Internal Error occurred, but safely resumed.")
+                debug(ex)
+                return self.actual_call_impl(caller, args)
+        else:
+            return self.actual_call_impl(caller, args)
+
     def __repr__(self):
-        return "{}.{}()".format(self.clazz, self.signature)
+        args = "("
+        if len(self.args) > 0:
+            args = "{}{}".format(args, self.args[0])
+            for a in self.args[1:]:
+                args = "{}, {}".format(args, a)
+        args = "{})".format(args)
+        return "{}.{}{}".format(self.owner, self.signature, args)
 
 
-class NetworkInstanceDocument(NetworkDocument):
-
-    def __init__(self, sig, instance, clazz, *args, **kwargs):
-        super().__init__(sig)
-        self._instance = instance
-        self._clazz = clazz
-        self._args = args
-        self._kwargs = kwargs
-
-    @property
-    def instance(self):
-        return self._instance
-
-    @property
-    def clazz(self):
-        return self._clazz
-
-    def analyze(self):
-        # FIXME implement method analysis statement(s) here
-        # argument analysis
-        pass
-
-    def serialize(self, serializer):
-        serializer.serialize(self.script)
-        pass
-
-    def deserialize(self, serializer):
-        pass
+# class NetworkInstanceDocument(NetworkDocument):
+#
+#     def __init__(self, sig, instance, clazz, *args, **kwargs):
+#         super().__init__(sig)
+#         self._instance = instance
+#         self._clazz = clazz
+#         self._args = args
+#         self._kwargs = kwargs
+#
+#     @property
+#     def instance(self):
+#         return self._instance
+#
+#     @property
+#     def clazz(self):
+#         return self._clazz
+#
+#     def analyze(self):
+#         # FIXME implement method analysis statement(s) here
+#         # argument analysis
+#         pass
+#
+#     def serialize(self, serializer):
+#         serializer.serialize(self.script)
+#         pass
+#
+#     def deserialize(self, serializer):
+#         pass
 
 
 class NetworkInstance(NetworkComponent, NetworkDocumentable):
 
-    def __init__(self, clazz, _id, owner, *args, **kwargs):
+    PRIVATE = "private"
+    PUBLIC = "public"
+    PROTECTED = "protected"
+    EMBEDDED = "embedded"
+    STACK = "stack"
+    VARS = "vars"
+    METHODS = "methods"
+    CLASSES = "classes"
+    BREAK_POINT = "break_point"
+
+    SELF = "$self"
+    GENERATOR = "$generator"
+    MANAGER = "$manager"
+    OWNER = "$manager"
+
+    def __init__(self, clazz, _id, owner, embedded=(), *args, **kwargs):
         super().__init__(owner)
-        self._attributes = {}
-        self.set_private_attribute(self, "$self", self)
-        self.set_private_attribute(self, "$owner", self.owner)
-        # # FIXME lex data shouldn't be holded here.
-        # lexdata = None
-        # if "lexdata" in kwargs.keys():
-        #     lexdata = kwargs["lexdata"]
-        # self._validator = None
+        # Attribute area.
+        self._attributes = {self.EMBEDDED: {},
+                            self.PRIVATE: {},
+                            self.PUBLIC: {},
+                            self.PROTECTED: {},
+                            self.STACK: [{self.VARS: {},
+                                          self.METHODS: {},
+                                          self.CLASSES: {},
+                                          self.BREAK_POINT: None}]}
+        #
+        # Private attributes setting. Basically, object itself can access.
+        self._attributes[self.PRIVATE][self.SELF] = self
+        self._attributes[self.PRIVATE][self.GENERATOR] = clazz
+        self._attributes[self.PRIVATE][self.MANAGER] = owner
+        #
+        # Adds properties for dynamic access. These are basically hidden from any object but self.
+        for e in embedded:
+            self._attributes[self.EMBEDDED][e[0]] = e[1]
+            self.__dict__[e[0]] = e[1]
+        #
+        # print setting
+        self._print_func = lambda x: self._print_buf.append(x)
+        self._auto_flush = False
+        self._print_buf = []
+        #
+        # FIXME deal with args
+        #
+        # FIXME validator and evaluator should be dynamically implemented.
+        self._validator = None
         if "validator" in kwargs.keys():
             self._validator = kwargs["validator"]
         self._clazz = clazz
         self._id = _id
-        self._context = [{
-            "vars": {},
-            "methods": {},
-            "classes": {},
-            "break_point": None
-        }]
+        #
+        # FIXME accessor implementation should be dynamically changable.
         self._accessor = HierarchicalAccessor(self)
         self._enable_stack = False
-        self._document = NetworkInstanceDocument(self.signature, self.id, self.clazz)
+        #
+        # FIXME document managing feature is pended for further consideration.
+        self._document = NetworkDocument(self)
         # self._document.set_script(lexdata)
         # FIXME this attribute should be removed
         self._globally = False
         if "globally" in kwargs.keys():
             self._globally = kwargs["globally"]
-        # FIXME deal with args
+        #
+        # implements methods
+        # get_armer().arm_default_methods(self, self.generator, self.owner)
+
+    """
+    Attribute accessors section.
+    """
+    # Caution! This method is internal method. Never call from other class scope.
+    def _accessible_attributes(self, args=(), names=(), stack_criteria=None):
+        acc = []
+        for ac in args:
+            if ac == self.STACK:
+                stacks = self._attributes[self.STACK]
+                i = len(stacks)-1
+                while 0 <= i:
+                    for c in stacks[i].keys():
+                        if stack_criteria is not None and c not in stack_criteria:
+                            continue
+                        if c == self.BREAK_POINT:
+                            continue
+                        for k in stacks[i][c].keys():
+                            if names is None or k in names:
+                                acc.append((k, stacks[i][c][k]))
+                    i = i-1
+            elif ac in self._attributes.keys():
+                for n in self._attributes[ac].keys():
+                    if names is None or n in names:
+                        acc.append((n, self._attributes[ac][n]))
+            else:
+                print("ERROR!!! ILLEGAL ACCESS ATTEMPTED!")
+        return tuple(acc)
+
+    # Caution! This method is internal method. Never call from other class scope.
+    def _get_accessible_attributes(self, prior=(), names=()):
+        att = self._accessible_attributes(prior, names)
+        return att
+
+    # Caution! This method is internal method. Never call from other class scope.
+    def _has_accessible_attributes(self, prior=(), names=()):
+        acc = self._accessible_attributes(prior, names)
+        return len(acc) != 0
+
+    # Caution! This method is internal method. Never call from other class scope.
+    def _get_accessibilities(self, caller):
+        # FIXME should consider caller.
+        acc = []
+        if caller == self:  # self is entirely accessible.
+            acc.append(self.EMBEDDED)
+            acc.append(self.PRIVATE)
+            acc.append(self.PROTECTED)
+            acc.append(self.PUBLIC)
+            acc.append(self.STACK)
+        elif caller == self.generator:  # generator is not accessible to PRIVATE and EMBEDDED.
+            acc.append(self.PROTECTED)
+            acc.append(self.PUBLIC)
+            acc.append(self.STACK)
+        elif caller == self.owner:  # owner is not accessible to PRIVATE, PROTECTED and EMBEDDED.
+            acc.append(self.PUBLIC)
+            acc.append(self.STACK)
+        else:  # others are not accessible to PRIVATE and EMBEDDED. More protection should be implemented.
+            acc.append(self.PUBLIC)
+            acc.append(self.STACK)
+        return tuple(acc)
+
+    # This method is public accessible.
+    def has_attribute(self, caller, name):
+        acc = self._get_accessibilities(caller)
+        att = self._accessible_attributes(acc, names=[name])
+        return len(att) != 0
+
+    # This method is public accessible.
+    def get_accessible_attribute(self, caller, name):
+        acc = self._get_accessibilities(caller)
+        att = self._get_accessible_attributes(acc, names=[name])
+        return att[0][1]
+
+    # This method is public accessible.
+    def get_accessible_attributes(self, caller, name, identfier=None):
+        acc = self._get_accessibilities(caller)
+        att = self._get_accessible_attributes(acc, names=[name])
+        rtn = []
+        for a in att:
+            b = a[1]
+            if identfier is None:
+                rtn.append(b)
+            if identfier(b):
+                rtn.append(b)
+        return tuple(rtn)
+
+    def get_attribute(self, caller, name):
+        return self.get_accessible_attribute(caller, name)
+
+    def get_attributes(self, caller, criteria=None):
+        # FIXME accessibility selector 'criteria' should be implemented.
+        acc = self._get_accessibilities(caller)
+        att = self._accessible_attributes(acc, names=None)
+        return att
+
+    def _set_attribute(self, name, val, kind, depth=None, overwrite=False):
+        # FIXME well-consider secure access.
+        if isinstance(val, NetworkMethod):
+            t = self.METHODS
+        elif isinstance(val, NetworkClassInstance):
+            t = self.CLASSES
+        else:
+            t = self.VARS
+        if kind in (self.PRIVATE, self.PROTECTED, self.PUBLIC):
+            if overwrite is None:
+                self._attributes[kind][name] = val
+                return
+            if name not in self._attributes[kind].keys():
+                if not overwrite:
+                    self._attributes[kind][name] = val
+                    return
+            else:
+                if overwrite:
+                    self._attributes[kind][name] = val
+                    return
+                else:
+                    # FIXME prohibition should be adequately notified.
+                    raise NetworkError("Illegal attempt to set attribute. {}[{}] not set yet.".format(kind, name))
+        elif kind in [self.STACK]:
+            if depth is None:
+                depth = self._deepest_stack_id()
+            if overwrite is None:
+                self._attributes[kind][depth][t][name] = val
+                return
+            while 0 <= depth:
+                if name not in self._attributes[kind][t][depth].keys():
+                    if not overwrite:
+                        self._attributes[kind][depth][t][name] = val
+                        return
+                else:
+                    if overwrite:
+                        self._attributes[kind][depth][t][name] = val
+                        return
+                    else:
+                        # FIXME prohibition should be adequately notified.
+                        raise NetworkError("Illegal attempt to set attribute. {}[{}][{}] not set yet.".format(kind, t, name))
+                depth = depth - 1
+        # FIXME prohibition should be adequately notified.
+        raise NetworkError("Illegal attempt to set attribute. {}[{}][{}] not set yet.".format(kind, t, name))
+
+    def _remove_attribute(self, name, val, kind, depth=None):
+        # FIXME well-consider secure access.
+        if isinstance(val, NetworkCallable):
+            t = self.METHODS
+        elif isinstance(val, NetworkClassInstance):
+            t = self.CLASSES
+        else:
+            t = self.VARS
+        if kind in (self.PRIVATE, self.PROTECTED, self.PUBLIC):
+            if name in self._attributes[kind].keys():
+                self._attributes[kind].pop(name)
+        elif kind in [self.STACK]:
+            if depth is None:
+                depth = self._deepest_stack_id()
+            while 0 <= depth:
+                if name in self._attributes[kind][depth][t].keys():
+                    self._attributes[kind][depth][t].pop(name)
+                depth = depth - 1
+        # FIXME prohibition should be adequately notified.
+        raise NetworkError("Illegal attempt to remove attribute. Not set yet.")
+
+    def set_attribute(self, caller, name, val, kind=None, depth=None, overwrite=None):
+        # FIXME well-consider secure access.
+        # print("***** WARNING!!! SET_ATTRIBUTE IS DEPRECATED.")
+        if kind is None:
+            kind = self.STACK
+        self._set_attribute(name, val, kind=kind, depth=depth, overwrite=overwrite)
+
+    def remove_attribute(self, caller, name, val, kind=None, depth=None, overwrite=None):
+        # FIXME well-consider secure access.
+        # print("***** WARNING!!! REMOVE_ATTRIBUTE IS DEPRECATED.")
+        if kind is None:
+            kind = self.STACK
+        self._set_attribute(name, val, kind=kind, depth=depth, overwrite=overwrite)
+
+    def has_private_attribute(self, caller, name):
+        # FIXME well-consider implementation of secure access.
+        print("***** WARNING!!! HAS_PRIVATE_ATTRIBUTE IS DEPRECATED.")
+        att = self._get_accessible_attributes([self.PUBLIC], [name])
+        return len(att) != 0
+
+    def get_private_attribute(self, caller, name):
+        # FIXME well-consider implementation of secure access.
+        # print("***** WARNING!!! GET_PRIVATE_ATTRIBUTE IS DEPRECATED.")
+        att = self._get_accessible_attributes([self.PUBLIC], [name])
+        return att[0][1]
+
+    def set_private_attribute(self, caller, name, val):
+        # FIXME well-consider implementation of secure access.
+        # print("***** WARNING!!! SET_PRIVATE_ATTRIBUTE IS DEPRECATED.")
+        self._set_attribute(name, val, self.PUBLIC)
+
+    # local variable
+    def declare_var(self, var, globally=False):
+        # FIXME this method is deprecated. Use push_stack instead.
+        print("***** WARNING!!! DECLARE_VAR IS DEPRECATED.")
+        if globally:
+            depth = 0
+        else:
+            depth = None
+        self.set_attribute(self, var.name, var, kind=self.STACK, depth=depth, overwrite=None)
+        var.set_owner(var)
+
+    def register_var(self, caller, name, var, kind=None, depth=None):
+        # FIXME well-consider secure access.
+        if kind is None:
+            kind = self.STACK
+        self.set_attribute(caller, name, var, kind=kind, depth=depth)
+        var.set_owner(self)
+
+    def remove_var(self, caller, var, kind=None, depth=None):
+        # FIXME well consider access security.
+        if kind is None:
+            kind = self.STACK
+        self.remove_attribute(caller, var.name, var, kind=kind, depth=depth)
+
+    # local method
+    def declare_method(self, method, globally=False):
+        # FIXME this method is deprecated. Use register_method instead.
+        print("***** WARNING!!! DECLARE_METHOD IS DEPRECATED.")
+        if globally:
+            depth = 0
+        else:
+            depth = None
+        self.register_method(self, method.signature, method, kind=self.STACK, depth=depth, overwrite=None)
+
+    # local method
+    def register_method(self, caller, name, method, kind=None, depth=None, overwrite=None):
+        # FIXME well-consider secure access.
+        if kind is None:
+            kind = self.STACK
+        if depth is None:
+            depth = 0
+        self.set_attribute(caller, name, method, kind=kind, depth=depth, overwrite=overwrite)
+        method.set_owner(self)
+
+    def remove_method(self, caller, method, kind=None, depth=None, overwrite=None):
+        # FIXME well consider access security.
+        if kind is None:
+            kind = self.STACK
+        self.remove_attribute(caller, method.signature, method, kind=kind, depth=depth, overwrite=overwrite)
+
+    def declare_class(self, clazz, globally=False):
+        if clazz.globally or globally:
+            depth = 0
+        else:
+            depth = None
+        self.register_class(self, clazz.signature, clazz, kind=self.STACK, depth=depth, overwrite=None)
+        clazz.set_parent(self)
+
+    def register_class(self, caller, name, clazz, kind=None, depth=None, overwrite=None):
+        # FIXME well-consider secure access.
+        if kind is None:
+            kind = self.STACK
+        if depth is None:
+            depth = 0
+        self.set_attribute(caller, name, clazz, kind=kind, depth=depth, overwrite=overwrite)
+        clazz.set_owner(self)
+
+    def remove_class(self, caller, clazz, kind=None, depth=None):
+        # FIXME well consider access security.
+        if kind is None:
+            kind = self.STACK
+        self.remove_attribute(caller, clazz.signature, clazz, kind=kind, depth=depth)
+
+    def get_callable(self, caller, sig):
+        # FIXME well-consider access security, since this inspects private attributes.
+        #if sig == "clazz":
+        print("*** CALLER", type(caller), caller)
+        print("*** Searching GET_METHOD")
+        callee = self.get_method(caller, sig)
+        if callee is not None:
+            return callee
+        # find callable attribute
+        #if sig == "clazz":
+        print("*** CALLER", type(caller), caller)
+        print("*** Searching CALLABLE_ATTRIBUTE")
+        weakest_acc = self._get_accessibilities(caller)
+        if self.STACK in weakest_acc:
+            att = self._accessible_attributes([self.STACK], names=[sig], stack_criteria=(self.VARS, self.CLASSES))
+            for a in att:
+                if isinstance(a[1], NetworkCallable):
+                    return a[1]
+        return None
+
+    def get_method(self, caller, sig):
+        # This method is opened method, so basically arrows access to registered method, not callable variable.
+        # search in secured area.
+        weakest_acc = self._get_accessibilities(caller)
+        if self.STACK in weakest_acc:
+            att = self._accessible_attributes([self.STACK], names=[sig], stack_criteria=[self.METHODS])
+            if len(att) != 0:
+                return att[0][1]
+        # search generator method. This corresponds to call class method.
+        if self.generator is not None:
+            att = self.generator.get_method(caller, sig)
+            if att is not None:
+                if isinstance(att, NetworkMethod):
+                    return att
+        return None
+
+    def get_class(self, caller, sig):
+        # print("This method is updated for secure access.")
+        # FIXME consider class hierarchy and security
+        weakest_acc = self._get_accessibilities(caller)
+        if self.STACK in weakest_acc:
+            att = self._accessible_attributes([self.STACK], names=[sig], stack_criteria=[self.CLASSES])
+            if len(att) != 0:
+                return att[0][1]
+        # att = self.get_accessible_attribute(caller, sig)
+        # if att is not None:
+        #     if isinstance(att, NetworkClassInstance):
+        #         return att
+        if self.generator is not None:
+            att = self.generator.get_class(caller, sig)
+            if att is not None:
+                if isinstance(att, NetworkClassInstance):
+                    return att
+        # # search generator method.
+        # if self.generator is not None:
+        #     att = self.generator.get_class(caller, sig)
+        #     if att is not None:
+        #         if isinstance(att, NetworkClassInstance):
+        #             return att
+        return None
+
+    def get_var(self, name, globally=True):
+        # FIXME consider class hierarchy and security. currently, depends on self accessor method.
+        # FIXME this method is deprecated.
+        print("***** WARNING!!! GET_VAR IS DEPRECATED.")
+        debug("This method is deprecated. use accessor.get() instead.")
+        if globally:
+            depth = 0
+        else:
+            depth = None
+        rtn = self.get_attribute(self, name)
+        return rtn
+
+    def set_var(self, var, globally=False):
+        # FIXME this method is deprecated.
+        print("***** WARNING!!! SET_VAR IS DEPRECATED.")
+        debug("This method is deprecated. use accessor.set() instead.")
+        if globally:
+            depth = 0
+        else:
+            depth = None
+        self.set_attribute(self, var.name, var, self.STACK, depth=depth)
 
     @property
-    def signature(self):
-        return "{}.{}".format(self.clazz.signature, self.id)
+    def enable_stack(self):
+        # FIXME secure control should be done.
+        return self._enable_stack
+
+    def set_stack_enable(self, en):
+        self._enable_stack = en
+
+    def _deepest_stack_id(self):
+        return len(self._attributes[self.STACK])-1
+
+    def deepest_stack_id(self, caller):
+        # FIXME check accessibility
+        return self._deepest_stack_id()
+
+    def _get_stack(self, depth=None):
+        if depth is None:
+            depth = self._deepest_stack_id()
+        # print("*** _GET_STACK with {} depth {}".format(self, depth))
+        return self._attributes[self.STACK][depth]
+
+    def get_stack(self, caller, depth=None):
+        # FIXME check accessibility.
+        return self._get_stack(depth)
+
+    def _push_stack(self):
+        frame = {self.VARS: {}, self.METHODS: {}, self.CLASSES: {}, self.BREAK_POINT: None}
+        self._attributes[self.STACK].append(frame)
+        return len(self._attributes[self.STACK])-1
+
+    def push_stack(self, caller):
+        # FIXME check accessibility.
+        return self._push_stack()
+
+    def _pop_stack(self, stack_id):
+        if self.enable_stack:
+            if stack_id is None:
+                stack_id = self._deepest_stack_id()
+            if self._deepest_stack_id() == 0:
+                print("**** ILLEGAL _POP_STACK() ATTEMPTED!!!")
+                return
+            self._attributes[self.STACK] = self._attributes[self.STACK][0:stack_id]
+
+    def pop_stack(self, caller, stack_id=None):
+        # FIXME check accessibility.
+        self._pop_stack(stack_id)
+
+    @property
+    def context(self):
+        # This method is deprecated. Use stack().
+        return self.get_stack(self)
+
+    def push_context(self):
+        # FIXME this method is deprecated. Use push_stack instead.
+        print("***** WARNING!!! PUSH_CONTEXT IS DEPRECATED.")
+        return self.push_stack(self)
+
+    def pop_context(self, context_id):
+        # FIXME this method is deprecated. Use push_stack instead.
+        print("***** WARNING!!! POP_CONTEXT IS DEPRECATED.")
+        self.pop_stack(self, context_id)
+
+    def get_accessible_attribute_map(self, caller, criteria=()):
+        # FIXME secure access must be implemented right now.
+        map = {}
+        if caller == self:
+            map[self.EMBEDDED] = self._attributes[self.EMBEDDED]
+            map[self.PRIVATE] = self._attributes[self.PRIVATE]
+        map[self.PROTECTED] = self._attributes[self.PROTECTED]
+        map[self.PUBLIC] = self._attributes[self.PUBLIC]
+        map[self.STACK] = self._attributes[self.STACK]
+        return map
+
+    def embedded_attrib(self, caller, args=()):
+        # FIXME secure access should be well-considered.
+        return tuple([_ for _ in self._attributes[self.EMBEDDED].keys()])
+
+    def has_embedded_attrib(self, caller, attrib, args=()):
+        # FIXME secure access should be well-considered.
+        if caller == self:
+            return attrib in self._attributes[self.EMBEDDED].keys()
+        return False
+
+    @property
+    def clazz(self):
+        if isinstance(self._clazz, NetworkClassInstance):
+            return self._clazz
+        elif self.owner is not None:
+            return self.owner.get_class(self._clazz)
+        return None
+
+    @property
+    def generator(self):
+        return self._clazz
 
     @property
     def id(self):
         return self._id
 
-    def get_accessible_attribute(self, caller, name):
-        if isinstance(caller, HierarchicalAccessor):
-            return NetworkNothing("Access denied.")
-        var = self.accessor.get(caller, name)
-        if isinstance(var, NetworkNothing):
-            if name in self._attributes.keys():
-                return self._attributes[name]
-            return NetworkNothing("{} is not accessible.".format(name))
-        return var
+    @property
+    def signature(self):
+        if self.generator is None:
+            return str(self.id)
+        return "{}[{}]".format(self.generator, self.id)
 
     def set_owner(self, owner):
-        self.set_owner(owner)
-        self.set_private_attribute(self, "$owner", owner)
+        super().set_owner(owner)
+        self.set_attribute(self, self.MANAGER, owner, self.PUBLIC, overwrite=None)
 
     @property
     def parent(self):
@@ -1237,10 +1759,6 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
 
     def set_parent(self, parent):
         self.set_owner(parent)
-
-    @property
-    def clazz(self):
-        return self._clazz
 
     @property
     def globally(self):
@@ -1251,16 +1769,61 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
         return self.globally
 
     @property
-    def context(self):
-        return self._context[len(self._context)-1]
-
-    @property
-    def enable_stack(self):
-        return self._enable_stack
-
-    @property
     def accessor(self):
         return self._accessor
+
+    @property
+    def document(self):
+        return self._document
+
+    @property
+    def print_buf(self):
+        return self._print_buf
+
+    @property
+    def auto_flush(self):
+        return self._auto_flush
+
+    @auto_flush.setter
+    def auto_flush(self, auto):
+        self._auto_flush = auto
+
+    def set_print_func(self, func):
+        self._print_func = func
+
+    def print(self, *args):
+        args = "".join([str(_) for _ in args])
+        if self._auto_flush:
+            self._print_func(args)
+        else:
+            self._print_buf.append(args)
+
+    def flush_print_buf(self):
+        buf = "\n".join([str(_) for _ in self._print_buf])
+        self._print_buf.clear()
+        return buf+"\n"
+
+    def debug(self, obj, *args, **kwargs):
+        obj = [str(obj)]
+        obj.extend([str(_) for _ in args])
+        _log = "log" in kwargs.keys() and not kwargs["log"]
+        _stdout = "stdout" in kwargs.keys() and not kwargs["stdout"]
+        _print_buf = "print_buf" in kwargs.keys() and not kwargs["print_buf"]
+        _flush = "flush" in kwargs.keys() and not kwargs["flush"]
+        if _log:
+            self.log.debug(args=obj)
+        if _stdout:
+            for o in obj:
+                sys.stdout.write(o)
+            if _flush or self.auto_flush:
+                sys.stdout.flush()
+        else:
+            if _flush or self.auto_flush:
+                for o in obj:
+                    self._print_func(o)
+            else:
+                for o in obj:
+                    self._print_buf.append(o)
 
     @property
     def validator(self):
@@ -1270,76 +1833,6 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
 
     def set_validator(self, v):
         self._validator = v
-
-    def set_stack_enable(self, en):
-        self._enable_stack = en
-
-    def push_context(self):
-        if self.enable_stack:
-            new_ctx = {
-                "methods": {},
-                "vars": {},
-                "classes": {},
-                "break_point": None
-            }
-            self._context.append(new_ctx)
-            return len(self._context)
-
-    def pop_context(self, context_id):
-        if self.enable_stack:
-            self._context = self._context[0:context_id-1]
-
-    def has_attribute(self, name):
-        for i in sorted(range(len(self._context))):
-            if name in self._context[i]["vars"].keys():
-                return True
-        if name in self._attributes.keys():
-            return True
-        return False
-
-    def get_attribute(self, name):
-        for i in sorted(range(len(self._context))):
-            if name in self._context[i]["vars"].keys():
-                return self._context[i]["vars"][name]
-        if name in self._attributes.keys():
-            return self._attributes[name]
-        return NetworkNothing("name")
-
-    def set_attribute(self, name, val):
-        i = len(self._context)-1
-        for i in sorted(range(len(self._context)), reverse=True):
-            if name in self._context[i]["vars"].keys():
-                self._context[i]["vars"][name] = val
-        self._context[i]["vars"][name] = val
-
-    def set_private_attribute(self, caller, name, val):
-        # FIXME well-consider implementation of secure access.
-        # if self != caller and self.owner != caller:
-        #     raise NetworkError("Invalid attempt to access private attribute.")
-        self._attributes[name] = val
-
-    # local variable
-    def declare_var(self, var, globally=False):
-        if var.globally or globally:
-            self._context[0]["vars"][var.name] = var
-        else:
-            self.context["vars"][var.name] = var
-        var.set_owner(var)
-
-    # local method
-    def declare_method(self, method, globally=False):
-        if method.globally or globally:
-            self._context[0]["methods"][method.signature] = method
-        else:
-            self.context["methods"][method.signature] = method
-        method.set_owner(self)
-
-    def declare_class(self, clazz, globally=False):
-        if clazz.globally or globally:
-            self._context[0]["classes"][clazz.signature] = clazz
-        else:
-            self.context["classes"][clazz.signature] = clazz
-        clazz.set_parent(self)
 
     def create_class(self, signature, owner, initializer_args=()):
         if signature in self.context["classes"].keys():
@@ -1351,196 +1844,102 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
     def create_method(self, signature, args, stmt):
         if signature in self.context["methods"].keys():
             raise NetworkError("Instance {} already has named method '{}'.".format(self, signature))
-        m = NetworkMethod(self, (signature, args, stmt))
-        self.declare_method(m)
+        # m = NetworkMethod(self, (signature, args, stmt))
+        m = NetworkMethod(self, signature, args=args, stmt=stmt)
+        self.register_method(self, signature, m, depth=0, overwrite=None)
         return m
-
-    def get_callable_var(self, caller, sig):
-        var = self.accessor.get(caller, sig)
-        if isinstance(var, NetworkCallable):
-            return var
-        return None
-
-    def get_method(self, caller, sig):
-        # print("This method is updated for secure access.")
-        if sig in self._attributes.keys():
-            m = self._attributes[sig]
-            if isinstance(m, NetworkMethod):
-                return m
-        for i in sorted(range(len(self._context))):
-            context = self._context[i]
-            if "methods" in context.keys():
-                context = context["methods"]
-                if sig in context.keys():
-                    return context[sig]
-
-        if self.clazz is not None:
-            m = self.clazz.get_method(caller, sig)
-            if m is not None:
-                return m
-        if self.owner is not None:
-            return self.owner.get_method(caller, sig)
-        return None
-
-    def get_class(self, caller, sig):
-        # print("This method is updated for secure access.")
-        # FIXME consider class hierarchy and security
-        if sig in self._attributes.keys():
-            c = self._attributes[sig]
-            if isinstance(c, NetworkClassInstance):
-                return c
-        for i in sorted(range(len(self._context))):
-            context = self._context[i]
-            if "classes" in context.keys():
-                context = context["classes"]
-                if sig in context.keys():
-                    return context[sig]
-        if self.clazz is not None:
-            return self.clazz.get_class(caller, sig)
-        return None
-
-    def get_var(self, name, globally=True):
-        print("This method is deprecated. use accessor.get() instead.")
-        rtn = self.get_accessible_attribute(self, name)
-        # FIXME consider class hierarchy and security
-        if name in self._attributes.keys():
-            v = self._attributes[name]
-            if isinstance(v, NetworkVariable):
-                return v
-        if globally:  # searches globally
-            for i in sorted(range(len(self._context))):
-                context = self._context[i]
-                if "vars" in context.keys():
-                    context = context["vars"]
-                    if name in context.keys():
-                        return context[name]
-        else:  # searches locally
-            context = self.context
-            if "vars" in context.keys():
-                context = context["vars"]
-                if name in context.keys():
-                    return context[name]
-        return None
-
-    def set_var(self, var, globally=False):
-        print("This method is deprecated. use accessor.set() instead.")
-        if globally:
-            self._context[0]["vars"][var.name] = var
-        else:
-            for i in sorted(range(len(self._context)), reverse=True):
-                if var.name in self._context[i]["vars"].keys():
-                    self._context[i]["vars"][var.name] = var
-                    return
-            self.context["vars"][var.name] = var
 
     @property
     def break_point(self):
-        return self.context["break_point"]
+        return self.get_stack(self)[self.BREAK_POINT]
+        # return self.context["break_point"]
 
-    def set_break_point(self, break_info):
-        self.context["break_point"] = break_info
+    def set_break_point(self, caller, break_info):
+        stack = self.get_stack(caller)
+        stack[self.BREAK_POINT] = break_info
+        # self.context["break_point"] = break_info
 
-    def managing_methods(self):
-        methods = []
-        for i, ctx in enumerate(self._context):
-            for k in ctx["methods"].keys():
-                methods.append(ctx["methods"][k])
-        return methods
+    # def managing_methods(self):
+    #     methods = []
+    #     for i, ctx in enumerate(self._context):
+    #         for k in ctx["methods"].keys():
+    #             methods.append(ctx["methods"][k])
+    #     return methods
+    #
+    # def managing_vars(self):
+    #     vars = []
+    #     for i, ctx in enumerate(self._context):
+    #         for k in ctx["vars"].keys():
+    #             vars.append(ctx["vars"][k])
+    #     return vars
+    #
+    # def managing_classes(self):
+    #     classes = []
+    #     for i, ctx in enumerate(self._context):
+    #         for k in ctx["classes"].keys():
+    #             classes.append(ctx["classes"][k])
+    #     return classes
 
-    def managing_vars(self):
-        vars = []
-        for i, ctx in enumerate(self._context):
-            for k in ctx["vars"].keys():
-                vars.append(ctx["vars"][k])
-        return vars
-
-    def managing_classes(self):
-        classes = []
-        for i, ctx in enumerate(self._context):
-            for k in ctx["classes"].keys():
-                classes.append(ctx["classes"][k])
-        return classes
-
-    def create_builtin_methods_wrapper(self):
-        wrapper = NetworkMethodWrapper(self, self, "get_var", lambda c, arg: c.get_var(c, arg[0]), ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "get_method", lambda c, arg: c.get_method(c, arg[0]), ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "get_class", lambda c, arg: c.get_class(c, arg[0]), ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "signature", lambda c, arg: c.signature, ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "clazz", lambda c, arg: c.clazz, ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "managing_methods", lambda c, arg: c.managing_methods(), ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "managing_classes", lambda c, arg: c.managing_classes(), ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "managing_vars", lambda c, arg: c.managing_vars(), ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "managing_vars", lambda c, arg: c.managing_vars(), ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "create_class", lambda c, arg: c.create_class(), ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "create_instance", lambda c, arg: c.create_instance(), ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "document", lambda c, arg: c.document, ["m"])
-        wrapper = NetworkMethodWrapper(self, self, "method_document", lambda c, arg: c.arg[0].document, ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "method_document", lambda c, arg: c.arg[0].document, ["m"])
-        self.declare_method(wrapper)
-        wrapper = NetworkMethodWrapper(self, self, "script", lambda c, arg: c.arg[0].script, ["m"])
-        self.declare_method(wrapper)
+    def invoke(self, caller, sig, args):
+        # DO NOT ACCESS PRIVATE ATTRIBUTES.
+        callee = self.get_method(caller, sig)
+        if callee is None:
+            # callee = self.get_callable(caller, sig)
+            # if callee is None:
+            raise NetworkError("Method {}.{} not found.".format(self.clazz.signature, sig))
+        return callee(caller, args)
 
     def stack_structure(self):
-        stack_structure = ""
-        for i, c in enumerate(self._context):
-            vars = "vars: "
-            for k in c["vars"].keys():
-                vars = vars + k + ","
-            methods = "methods: "
-            for k in c["methods"].keys():
-                methods = methods + k + ","
-            classes = "classes: "
-            for k in c["classes"].keys():
-                classes = classes + k + ","
-            stack_structure = stack_structure + "{}:[{}, {}, {}] ".format(i, vars, methods, classes)
-        return stack_structure
+        # FIXME DO NOT USE THIS METHOD!!! INSTEAD, USE _ATTRIBUTES().
+        raise NetworkNotImplementationError("deprecated")
+        # stack_structure = ""
+        # for i, c in enumerate(self._context):
+        #     vars = "vars: "
+        #     for k in c["vars"].keys():
+        #         vars = vars + k + ","
+        #     methods = "methods: "
+        #     for k in c["methods"].keys():
+        #         methods = methods + k + ","
+        #     classes = "classes: "
+        #     for k in c["classes"].keys():
+        #         classes = classes + k + ","
+        #     stack_structure = stack_structure + "{}:[{}, {}, {}] ".format(i, vars, methods, classes)
+        # return stack_structure
 
     def __repr__(self):
-        return "{}.{}".format(self.clazz.signature, self.id)
+        return "{}".format(self.signature)
 
 
-class NetworkClassInstanceDocument(NetworkDocument):
-
-    def __init__(self, sig, instance, clazz, *args, **kwargs):
-        super().__init__(sig)
-        self._instance = instance
-        self._clazz = clazz
-        self._args = args
-        self._kwargs = kwargs
-
-    @property
-    def instance(self):
-        return self._instance
-
-    @property
-    def clazz(self):
-        return self._clazz
-
-    def analyze(self):
-        # FIXME implement method analysis statement(s) here
-        # argument analysis
-        pass
-
-    def serialize(self, serializer):
-        for i in self.clazz:
-            pass
-        serializer.serialize(self.script)
-        pass
-
-    def deserialize(self, serializer):
-        pass
+# class NetworkClassInstanceDocument(NetworkDocument):
+#
+#     def __init__(self, sig, instance, clazz, *args, **kwargs):
+#         super().__init__(sig)
+#         self._instance = instance
+#         self._clazz = clazz
+#         self._args = args
+#         self._kwargs = kwargs
+#
+#     @property
+#     def instance(self):
+#         return self._instance
+#
+#     @property
+#     def clazz(self):
+#         return self._clazz
+#
+#     def analyze(self):
+#         # FIXME implement method analysis statement(s) here
+#         # argument analysis
+#         pass
+#
+#     def serialize(self, serializer):
+#         for i in self.clazz:
+#             pass
+#         serializer.serialize(self.script)
+#         pass
+#
+#     def deserialize(self, serializer):
+#         pass
 
 
 class NetworkSymbol(UnaryEvaluatee):
@@ -1565,30 +1964,35 @@ class NetworkSymbol(UnaryEvaluatee):
 
 class NetworkClassInstance(NetworkInstance, NetworkCallable):
 
-    def __init__(self, meta_clazz, signature, owner, super_class=None, **kwargs):
+    def __init__(self, generator, signature, owner, super_class=None, embedded=(), *args, **kwargs):
+        super().__init__(generator, signature, owner, embedded=embedded, args=args)
         self._super_class = super_class
         self._signature = signature
-        super().__init__(owner, 0, meta_clazz, args=None)
         self._globally = False
+        #
+        # FIXME class stored place is not defined in this timing.
         if "globally" in kwargs.keys():
             globally = kwargs["globally"]
         self._init_args = None
         if "init_args" in kwargs.keys():
             self._init_args = kwargs["init_args"]
-        self._lexdata = None
-        if "lexdata" in kwargs.keys():
-            self._lexdata = kwargs["lexdata"]
+        # self._lexdata = None
+        # if "lexdata" in kwargs.keys():
+        #     self._lexdata = kwargs["lexdata"]
         self._initializer = None
         self._last_instance = 0
         self._instance_ids = []
-        self._document = NetworkInstanceDocument(self.signature, self.id, self.clazz)
-        self._document.set_script(self._lexdata)
+        #
+        # FIXME document management feature is not implemented.
+        # self._document = NetworkInstanceDocument(self.signature, self.id, self.clazz)
+        # self._document.set_script(self._lexdata)
         # FIXME deal with init args
 
     @property
     def signature(self):
-        return self._signature
-        # return "{}.{}".format(self.clazz, self._signature)
+        if self.super_class is None:
+            return self._signature
+        return "{}::{}[{}]".format(self.super_class, self.generator, self._signature)
 
     @property
     def clazz(self):
@@ -1596,7 +2000,11 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
 
     @property
     def super_class(self):
-        return self._super_class
+        if self._super_class is None:
+            return None
+        if self.generator is None:
+            return None
+        return self.generator.get_class(self._super_class)
 
     @property
     def instance_ids(self):
@@ -1609,9 +2017,12 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
         return self._instance_ids[len(self._instance_ids)-1] + 1
 
     def init_clazz(self, initializer, method_list=()):
+        initializer.set_owner(self)
         self._initializer = initializer
         for e in method_list:
-            self.declare_method(e)
+            e.set_owner(self)
+            self.register_method(self, e.signature, e, depth=0, overwrite=None)
+            debug(e)
 
     @property
     def globally(self):
@@ -1625,11 +2036,13 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
     def is_global(self):
         return self.globally
 
-    def push_context(self):
-        raise NetworkError("NetworkClassInstance doesn't support context stack operation.")
+    def push_stack(self, caller):
+        print("**** NetworkClassInstance doesn't support context stack operation.")
+        return self.deepest_stack_id(caller)
 
-    def pop_context(self, context_id):
-        raise NetworkError("NetworkClassInstance doesn't support context stack operation.")
+    def pop_stack(self, caller, stack_id=None):
+        print("**** NetworkClassInstance doesn't support context stack operation.")
+        pass
 
     def declare_var(self, var, globally=False):
         super().declare_var(var, globally=globally)
@@ -1646,17 +2059,20 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
             m = self.super_class.get_method(caller, sig)
             if m is not None:
                 return m
-        elif self.owner is not None:
-            return self.owner.get_method(caller, sig)
-        else:
-            return None
+        return None
 
     def get_initializer(self) -> NetworkMethod:
         initializer = self._initializer
         return initializer
 
     def create_instance(self, _id, owner, args):
-        instance = NetworkInstance(self, _id, owner, args)
+        # inherits dynamic attributes.
+        embedded = []
+        for e in self._attributes[self.EMBEDDED].keys():
+            embedded.append((e, self._attributes[self.EMBEDDED][e]))
+        embedded = tuple(embedded)
+        # creates and initializes instance
+        instance = NetworkInstance(self, _id, owner, embedded, args)
         initializer: NetworkMethod = self.get_initializer()
         instance.set_stack_enable(False)
         if initializer is not None:
@@ -1668,40 +2084,27 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
         if instance.clazz == self:
             self._instance_ids.remove(instance.id)
         else:
-            print("Not managed object {}".format(instance))
+            debug("Not managed object {}".format(instance))
 
     def call_impl(self, caller, args, **kwargs):
         self._last_instance += 1
         self._instance_ids.append(self._last_instance)
         return self.create_instance(self._last_instance, caller, args)
 
-    def invoke(self, sig, instance, args):
-        m = self.get_method(instance, sig)
-        # m = self.accessor.get(instance, sig, NetworkMethod)
-        # if m is None:
-        #     m = instance.accessor.get(instance, sig, NetworkMethod)
-        #     if m is not None:
-        #         return m(instance, args)
-        if m is None:
-            raise NetworkError("Method {}.{} not found.".format(self.clazz.signature, sig))
-        return m(instance, args)
-
     def __repr__(self):
-        return "{}::{}: MetaClass:{}>".format(self.super_class, self.signature, self.clazz)
+        return "{}".format(self.signature)
 
 
 class NetworkClass(NetworkClassInstance):
 
-    def __init__(self, owner, signature, super_class=None, globally=False):
-        super().__init__(owner, signature, owner)
-        self._super_class = super_class
-        self._signature = signature
+    def __init__(self, owner, signature, super_class=None, embedded=(), globally=False):
+        super().__init__(owner, signature, owner, super_class=super_class, embedded=embedded)
         self._globally = globally
         self._classes = {}
 
     @property
-    def super_class(self):
-        return self._super_class
+    def signature(self):
+        return "{}:<MetaClass>".format(super().signature)
 
     @property
     def globally(self):
@@ -1715,24 +2118,22 @@ class NetworkClass(NetworkClassInstance):
     def classes(self):
         return self._classes
 
-    def create_instance(self, owner, clazz_signature, **kwargs):
-        if clazz_signature in self._classes:
-            raise NetworkError("class {} is already created.".format(clazz_signature))
-        init_args = []
-        if "init_args" in kwargs.keys():
-            init_args = kwargs["init_args"]
-        clazz = NetworkClassInstance(self, clazz_signature, owner, init_args=init_args)
+    def create_instance(self, clazz_sig, caller, args):
+        if clazz_sig in self._classes.keys():
+            raise NetworkError("class {} is already created.".format(clazz_sig))
+        # expects embedded=args[0] and args=args[1:]
+        embedded = args[0]
+        args = args[1:]
+        clazz = NetworkClassInstance(self, clazz_sig, caller, super_class=None, embedded=embedded, args=args)
         self.classes[clazz.signature] = clazz
         return clazz
 
-    def __call__(self, *args, **kwargs):
-        caller = args[0]
-        clazz_signature = args[1]
-        init_args = args[2]
-        return self.create_instance(caller, clazz_signature, init_args=init_args)
-
-    def __repr__(self):
-        return "{}:{}:MetaClass".format(self.signature, self.signature)
+    def call_impl(self, caller, args, **kwargs):
+        clazz_sig = args[0]
+        args = args[1:]  # expects embedded=args[0] and args=args[1:]
+        # print("clazz_sig:{0}, args:{1}".format(clazz_sig, args))
+        clazz = self.create_instance(clazz_sig, caller, args)
+        return clazz
 
 
 class NetworkWritee(NetworkComponent):
@@ -1788,7 +2189,7 @@ class SimpleVariable(NetworkVariable):
     @property
     def value(self):
         if self.owner is None:
-            print("Bug!!! value reference without declaration.")
+            debug("Bug!!! value reference without declaration.")
             return self._value
         else:
             return self._value
@@ -1811,7 +2212,11 @@ class HierarchicalAccessor(NetworkComponent):
     def __init__(self, owner=None):
         super().__init__(owner)
 
-    def separate_name(self, name):
+    # def separate_name(self, caller, name):
+    #     return self._separate_name(caller, name)
+    #
+
+    def _separate_name(self, caller, name):
         if isinstance(name, NetworkSymbol):
             name = name.symbol
         names = name.split(".")
@@ -1834,11 +2239,14 @@ class HierarchicalAccessor(NetworkComponent):
             if num_idx is not None and num_idx != "":
                 indices.append(int(num_idx))
             elif sym_idx is not None and sym_idx != "":
+                print("****** sym_idx:", type(sym_idx), sym_idx)
+                sym_idx = caller.get_attribute(caller, sym_idx)
+                # sym_idx = caller.accessor.get(caller, sym_idx)
                 indices.append(sym_idx)
             elif ltr_idx is not None and ltr_idx != "":
                 indices.append(ltr_idx)
             else:
-                return NetworkNothing(name)
+                raise NetworkNothing(name)
             indices_segment = indices_segment[m.span()[1]:]
         if len(names) == 1:
             first_name = None  # last_name
@@ -1860,22 +2268,13 @@ class HierarchicalAccessor(NetworkComponent):
                     raise NetworkReferenceError("Unaccessible referee {} for index {}.".format(var, i))
                 var = var[i]
             elif isinstance(i, str):
-                if i[0] == "\"" and i[len(i)-1] == "\"":
-                    i = i[1:len(i)-1]
-                    if not isinstance(var, dict):
-                        raise NetworkReferenceError("Unaccessible referee {} for index {}.".format(var, i))
+                if type(var) is dict:
                     var = var[i]
                 else:
-                    i = self.get(caller, i, types=(int, str))
-                    if type(i) is int and type(var) is list:
-                        var = var[i]
-                    elif type(i) is str and type(var) is dict:
-                        var = var[i]
-                    else:
-                        raise NetworkReferenceError("Unaccessible referee {} for index {}.".format(var, i))
+                    raise NetworkReferenceError("Unaccessible referee {} for index {}.".format(var, i))
         return var
 
-    def set_to_indexed_object(self, var, indices, val):
+    def _set_to_indexed_object(self, var, indices, val):
         i = indices[len(indices)-1]
         for i in indices[0:len(indices)-1]:
             if isinstance(i, int):
@@ -1906,10 +2305,10 @@ class HierarchicalAccessor(NetworkComponent):
             return NetworkNothing("Unavailable indexer {}.".format(i))
         return True
 
-    def get_named_value(self, caller, first_name, middle_names, last_name, indices):
-        return self.get_named_object(caller, first_name, middle_names, last_name, indices)
+    def _get_named_value(self, caller, first_name, middle_names, last_name, indices):
+        return self._get_named_object(caller, first_name, middle_names, last_name, indices)
 
-    def get_named_object(self, caller, first_name, middle_names, last_name, indices):
+    def _get_named_object(self, caller, first_name, middle_names, last_name, indices):
         names = []
         if first_name is not None:
             names.append(first_name)
@@ -1919,25 +2318,30 @@ class HierarchicalAccessor(NetworkComponent):
         obj = caller
         for i, n in enumerate(names):
             if isinstance(obj, NetworkInstance):
-                if not obj.has_attribute(n):
+                if not obj.has_attribute(caller, n):
                     symbol = self.complex_name(names, ())
-                    return NetworkNothing("Couldn't access to {}.".format(symbol))
-                obj = obj.get_attribute(n)
+                    raise NetworkNothing("Couldn't access to {}.{} to get due to {}:{}.".format(obj, symbol, type(n), n))
+                obj = obj.get_attribute(obj, n)
             elif isinstance(obj, dict):
-                if not n in obj.keys():
+                if n not in obj.keys():
                     symbol = self.complex_name(names, ())
-                    return NetworkNothing("Couldn't access to {}.".format(symbol))
+                    raise NetworkNothing("Couldn't access to {}.{} to get due to unavailabel dict index.".format(obj, symbol))
                 obj = obj[n]
-            elif i != len(names)-1:
+            elif type(obj) is list or type(obj) is tuple:
+                if type(n) is not int:
+                    symbol = self.complex_name(names, ())
+                    raise NetworkNothing("Couldn't access to {}.{} to get due to index isn't int.".format(obj, symbol))
+                obj = obj[n]
+            else:
                 symbol = self.complex_name(names, ())
-                return NetworkNothing("Couldn't access to {}.".format(symbol))
+                raise NetworkNothing("Couldn't access to {}.{} to get anyway.".format(obj, symbol))
         for j, i in enumerate(indices):
             if isinstance(i, str):
                 if i[0] == "\"" and i[len(i) - 1] == "\"":
                     i = i[1:len(i) - 1]
                     if not isinstance(obj, dict):
                         symbol = self.complex_name(names, indices[:j + 1])
-                        return NetworkNothing("Couldn't access to {}.".format(symbol))
+                        raise NetworkNothing("Couldn't access to {}.{} to get {} {} th index.".format(obj, symbol, type(i), j))
                     obj = obj[i]
                 else:
                     i = self.get(caller, i, types=(int, str))
@@ -1947,12 +2351,12 @@ class HierarchicalAccessor(NetworkComponent):
                         obj = obj[i]
                     else:
                         symbol = self.complex_name(names, indices[:j + 1])
-                        return NetworkNothing("Couldn't access to {}.".format(symbol))
+                        raise NetworkNothing("Couldn't access to {}.{} to get {} {} th inddex.".format(obj, symbol, type(i), j))
             elif type(i) is int and (isinstance(obj, list) or isinstance(obj, tuple)):
                 obj = obj[i]
             else:
                 symbol = self.complex_name(names, indices[:j+1])
-                return NetworkNothing("Couldn't access to {}.".format(symbol))
+                raise NetworkNothing("Couldn't access to {}.{} to get {} {} th index.".format(obj, symbol, type(i), j))
 
         return obj
 
@@ -1964,10 +2368,12 @@ class HierarchicalAccessor(NetworkComponent):
         return "{}{}".format(name, idx)
 
     def get(self, caller, hierarchical_name, types=None):
-        first_name, middle_names, last_name, indices = self.separate_name(hierarchical_name)
-        rtn = self.get_named_value(caller, first_name, middle_names, last_name, indices)
+        # print("<!--", self, "(", caller, ",", hierarchical_name, ",", types, ")")
+        original_caller = caller
+        first_name, middle_names, last_name, indices = self._separate_name(caller, hierarchical_name)
+        rtn = self._get_named_value(caller, first_name, middle_names, last_name, indices)
         if isinstance(rtn, NetworkNothing):
-            return rtn
+            raise rtn
         if not (type(types) is list or type(types) is tuple):
             available_types = [types]
         else:
@@ -1977,12 +2383,12 @@ class HierarchicalAccessor(NetworkComponent):
                 return rtn
             if isinstance(rtn, t):
                 return rtn
-        return NetworkNothing("{} not found.".format(hierarchical_name))
+        raise NetworkNothing("{} not found.".format(hierarchical_name))
 
-    def set_named_value(self, caller, first_name, middle_names, last_name, indices, val):
-        return self.set_named_object(caller, first_name, middle_names, last_name, indices, val)
+    def _set_named_value(self, caller, first_name, middle_names, last_name, indices, val):
+        return self._set_named_object(caller, first_name, middle_names, last_name, indices, val)
 
-    def set_named_object(self, caller, first_name, middle_names, last_name, indices, val):
+    def _set_named_object(self, caller, first_name, middle_names, last_name, indices, val):
         names = []
         if first_name is not None:
             names.append(first_name)
@@ -1998,80 +2404,90 @@ class HierarchicalAccessor(NetworkComponent):
             last_something = indices[len(indices)-1]
         for i, n in enumerate(names[:last]):
             if isinstance(obj, NetworkInstance):
-                if not obj.has_attribute(n):
-                    return NetworkNothing("Couldn't access to {}.".format(".".join(names[:i])))
-                obj = obj.get_attribute(n)
+                if not obj.has_attribute(caller, n):
+                    symbol = self.complex_name(names, ())
+                    raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
+                obj = obj.get_attribute(obj, n)
             elif isinstance(obj, dict):
-                if not n in obj.keys():
-                    return NetworkNothing("Couldn't access to {}.".format(".".join(names[:i])))
+                if n not in obj.keys():
+                    symbol = self.complex_name(names, ())
+                    raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
                 obj = obj[n]
             elif i != len(names):
-                return NetworkNothing("Couldn't access to {}.".format(".".join(names[:i])))
+                symbol = self.complex_name(names, ())
+                raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
         if len(indices) != 0:
             for j, i in enumerate(indices[:len(indices)-1]):
                 if isinstance(i, str):
-                    if i[0] == "\"" and i[len(i) - 1] == "\"":
-                        i = i[1:len(i) - 1]
-                        if not isinstance(obj, dict):
-                            symbol = self.complex_name(names, indices[:j + 1])
-                            return NetworkNothing("Couldn't access to {}.".format(symbol))
+                    # if i[0] == "\"" and i[len(i) - 1] == "\"":
+                    #     i = i[1:len(i) - 1]
+                    #     if not isinstance(obj, dict):
+                    #         symbol = self.complex_name(names, indices[:j + 1])
+                    #         raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
+                    #     obj = obj[i]
+                    # else:
+                    # i = self.get(caller, i, types=(int, str))
+                    # if type(i) is int and (type(obj) is list or type(obj) is tuple):
+                    #     obj = obj[i]
+                    # elif type(i) is str and type(obj) is dict:
+                    if type(obj) is dict:
                         obj = obj[i]
                     else:
-                        i = self.get(caller, i, types=(int, str))
-                        if type(i) is int and (type(obj) is list or type(obj) is tuple):
-                            obj = obj[i]
-                        elif type(i) is str and type(obj) is dict:
-                            obj = obj[i]
-                        else:
-                            symbol = self.complex_name(names, indices[:j + 1])
-                            return NetworkNothing("Couldn't access to {}.".format(symbol))
+                        symbol = self.complex_name(names, indices[:j + 1])
+                        raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
                 elif type(i) is int and (isinstance(obj, list) or isinstance(obj, tuple)):
                     obj = obj[i]
                 else:
                     symbol = self.complex_name(names, indices[:j + 1])
-                    return NetworkNothing("Couldn't access to {}.".format(symbol))
+                    raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
         if isinstance(obj, NetworkInstance):
-            obj.set_attribute(last_something, val)
+            obj.set_attribute(obj, last_something, val)
             return True
         i = last_something
         if isinstance(i, str):
-            if last_something[0] == "\"" and i[len(i) - 1] == "\"":
-                i = i[1:len(i) - 1]
-                if not isinstance(obj, dict):
-                    symbol = self.complex_name(names, indices)
-                    return NetworkNothing("Couldn't access to {}.".format(symbol))
+            # if last_something[0] == "\"" and i[len(i) - 1] == "\"":
+            #     i = i[1:len(i) - 1]
+            #     if not isinstance(obj, dict):
+            #         symbol = self.complex_name(names, indices)
+            #         raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
+            #     obj[i] = val
+            # else:
+            i = self.get(caller, i, types=(int, str))
+            # if type(i) is int and (type(obj) is list or type(obj) is tuple):
+            #     obj[i] = val
+            # elif type(i) is str and type(obj) is dict:
+            if type(obj) is dict:
                 obj[i] = val
             else:
-                i = self.get(caller, i, types=(int, str))
-                if type(i) is int and (type(obj) is list or type(obj) is tuple):
-                    obj[i] = val
-                elif type(i) is str and type(obj) is dict:
-                    obj[i] = val
-                else:
-                    symbol = self.complex_name(names, indices)
-                    return NetworkNothing("Couldn't access to {}.".format(symbol))
+                symbol = self.complex_name(names, indices)
+                raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
         elif isinstance(i, int):
             obj[i] = val
         else:
             symbol = self.complex_name(names, indices)
-            return NetworkNothing("Couldn't access to {}.".format(symbol))
+            raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
         return True
 
     def set(self, caller, hierarchical_name, val, value=True, method=False, clazz=False):
-        first_name, middle_names, last_name, indices = self.separate_name(hierarchical_name)
-        return self.set_named_value(caller, first_name, middle_names, last_name, indices, val)
+        original_caller = caller
+        first_name, middle_names, last_name, indices = self._separate_name(caller, hierarchical_name)
+        ret = self._set_named_value(caller, first_name, middle_names, last_name, indices, val)
+        return ret
 
 
 class NetworkMethodCaller(NetworkCallable):
 
     def __init__(self, owner, hierarchy_name, args=()):
-        super().__init__(owner, args=args)
+        super().__init__(owner, args=args, cancel_stacking=True)
         name = hierarchy_name.symbol
         self._hierarchical_name = name
         names = name.split(".")
         self._actual_caller = ".".join(names[0:len(names)-1])
         self._method_name = names[len(names)-1]
         self._is_default_method = self._method_name == name
+
+    # def set_owner(self, owner):
+    #     super().set_owner(owner)
 
     @property
     def hierarchical_name(self):
@@ -2089,41 +2505,45 @@ class NetworkMethodCaller(NetworkCallable):
     def is_default_method(self):
         return self._is_default_method
 
-    def call_impl(self, caller, args, **kwargs):        # acquire instance and args
+    def pre_call_impl(self, caller, args):
+        # This returns actual method, caller and args.
+        actual_args = self.args_impl(caller, args)
+        actual_caller = caller
         if self.is_default_method:
-            holder = caller
+            holder = actual_caller
         else:
             accessor = caller.accessor
             holder = accessor.get(caller, self.actual_caller)
-        if isinstance(holder, GenericValueHolder):
-            holder = holder.value
-        if not isinstance(holder, NetworkInstance):
-            raise NetworkError("Invalid method holder {}.".format(holder))
-        m = holder.get_method(self, self.method_name)
-        if m is None:
-            m = holder.get_callable_var(caller, self.method_name)
-            if m is None:
-                return NetworkReturnValue(None, False,
-                                          "Method {}.{} not found.".format(holder.signature, self.method_name))
-        return m(caller, args)
+            if holder is None:
+                raise NetworkNothing("Method holder named'{}' not found.".format(self.actual_caller))
+            if isinstance(holder, GenericValueHolder):
+                holder = holder.value
+            # print("***", type(holder), holder)
+            if not isinstance(holder, NetworkInstance):
+                raise NetworkError("Invalid method holder {}.".format(holder))
+            actual_caller = holder
+        print("**** pre  {}.get_method({},{})".format(holder, caller, self._method_name))
+        callee = holder.get_callable(caller, self.method_name)
+        print("done.")
+        if callee is None:
+            raise NetworkNotImplementationError("Method {}.{} not found.".format(caller, self.method_name))
+        return callee, actual_caller, actual_args
 
     def args_impl(self, caller, args, **kwargs):
         if not isinstance(caller, NetworkInstance):
             raise NetworkError("Invalid caller {}.".format(caller))
-        args = super().args_impl(caller, self.args)
-        return args
-        # new_args = []
-        # for a in self.args:
-        #     if isinstance(a, NetworkSymbol):
-        #         b = a.value
-        #     elif isinstance(a, GenericValueHolder):
-        #         b = a.value
-        #     elif isinstance(a, NetworkCallable):
-        #         b = a(caller)
-        #     else:
-        #         b = a
-        #     new_args.append(b)
-        # return new_args
+        args_converted = []
+        for a in self.args:
+            if isinstance(a, NetworkSymbol):
+                x = caller.accessor.get(caller, a.symbol)
+            elif isinstance(a, NetworkCallable):
+                x = a(caller)
+            elif isinstance(a, GenericValueHolder):
+                x = a.value
+            else:
+                x = a
+            args_converted.append(x)
+        return tuple(args_converted)
 
     def __repr__(self):
         args = ""
@@ -2131,16 +2551,18 @@ class NetworkMethodCaller(NetworkCallable):
             args = "{}".format(self.args[0])
             for a in self.args[1:]:
                 args = "{},{}".format(args, a)
-        return "{}({})".format(self.hierarchical_name, args)
+        return "MethodCaller {}({})".format(self.hierarchical_name, args)
 
 
 class NetworkSubstituter(NetworkCallable):
 
     def __init__(self, owner, var, callee, globally=False):
-        super().__init__(owner, cancel_stacking=True)
+        super().__init__(owner, args=tuple([callee]), cancel_stacking=True)
         self._var = var.symbol
-        self._callee = callee
         self._globally = globally
+
+    def set_owner(self, owner):
+        super().set_owner(owner)
 
     @property
     def var(self):
@@ -2148,42 +2570,40 @@ class NetworkSubstituter(NetworkCallable):
 
     @property
     def callee(self):
-        return self._callee
+        return self.args[0]
 
     @property
     def globally(self):
         return self._globally
 
     def call_impl(self, caller, args, **kwargs):
-        if type(self.callee) is list or type(self.callee) is tuple:
-            new_args = []
-            for a in self.callee:
-                new_args.append(a)
-            args = super().args_impl(caller, new_args)
-            args = [args]
+        # print("*** substituting 1", self.var, "of", caller, "<=", self.callee)
+        if self.globally:
+            depth = 0
         else:
-            args = super().args_impl(caller, [self.callee])
-        accessor = caller.accessor
-        accessor.set(caller, self.var, args[0])
+            depth = None
+        caller.set_attribute(caller, self.var, args[0], depth=depth)
+        # accessor.set(caller, self.var, args[0])
+        # print("*** substituted", self.var, "of", caller, "<=", self.callee)
 
     def args_impl(self, caller, args, **kwargs):
+        # print("*** caller", caller, self.args)
         # do nothing, since no argument preparation have to be done here.
-        pass
-    #     args = super().args_impl(caller, self.args)
-    #     self.args[0] = args[0]
-    #     return args
+        return super().args_impl(caller, self.args)
 
     def __repr__(self):
-        return "{} <<- {}".format(self.var, self.callee)
+        return "Substituter {} <<- {}".format(self.var, self.callee)
 
 
 class NetworkBreak(NetworkCallable):
+
+    BREAK = "break"
 
     def __init__(self, owner):
         super().__init__(owner, closer=True)
 
     def call_impl(self, caller, args, **kwargs):
-        caller.set_break_point("break")
+        caller.set_break_point(caller, self.BREAK)
 
     def args_impl(self, caller, args, **kwargs):
         return args
@@ -2193,6 +2613,8 @@ class NetworkBreak(NetworkCallable):
 
 
 class NetworkReturn(NetworkCallable, GenericValueHolder):
+
+    RETURN = "return"
 
     def __init__(self, owner, callee):
         super().__init__(owner, closer=True)
@@ -2212,7 +2634,7 @@ class NetworkReturn(NetworkCallable, GenericValueHolder):
             a = self.callee.value
         else:
             a = self.callee
-        caller.set_break_point(NetworkMethod.BreakPointState.Return)
+        caller.set_break_point(caller, self.RETURN)
         return a
 
     def __repr__(self):
@@ -2224,6 +2646,18 @@ class NetworkSequentialStatements(NetworkCallable):
     def __init__(self, owner):
         super().__init__(owner)
         self._statements = ()
+
+    def set_owner(self, owner):
+        super().set_owner(owner)
+        for stmts in self._statements:
+            if isinstance(stmts, GenericComponent):
+                stmts.set_owner(owner)
+            elif type(stmts) is list or type(stmts) is tuple:
+                for s in stmts:
+                    s.set_owner(owner)
+            else:
+                debug("Unexpected type '{}'", stmts)
+
 
     @property
     def statements(self):
@@ -2303,10 +2737,11 @@ class ForeachStatement(NetworkSequentialStatements):
             caller.accessor.set(caller, self.fetch_pos_name, -1)
             return True
         except NetworkReferenceError as ex:
-            print("preparation failed in ForeachStatement.")
+            debug("preparation failed in ForeachStatement.")
             return False
 
     def call_impl(self, caller, args, **kwargs):
+        print("*** call_impl with self={}, caller={}, args={}".format(self, caller, args))
         rtn = None
         while self.fetch(caller):
             rtn = super().call_impl(caller, args)
@@ -2315,6 +2750,7 @@ class ForeachStatement(NetworkSequentialStatements):
         return rtn
 
     def args_impl(self, caller, args, **kwargs):
+        print("*** args_impl with self={}, caller={}, args={}".format(self, caller, args))
         if not self.prepare(caller):
             rtn = NetworkReturnValue(caller, False, "fetching from {} failed.".format(self.fetchee))
             return rtn
@@ -2516,21 +2952,25 @@ class StrictWrappedAccessor(WrappedAccessor):
     def args_validator(self):
         return self._args_validator
 
-    def call_impl(self, caller, args, **kwargs):
-        caller_args = args
-        result = self.accessor(self.accessor_owner, caller, self.actual_owner, caller_args, self.extra_args)
-        return result
+    # No need to implement, due to identical to super-class's method.
+    # def call_impl(self, caller, args, **kwargs):
+    #     caller_args = args
+    #     result = self.accessor(self.accessor_owner, caller, self.actual_owner, caller_args, self.extra_args)
+    #     return result
 
     def args_impl(self, caller, args, **kwargs):
+        if self.args_validator is None:
+            return args
         caller_args = args
         result = self.args_validator(self.accessor_owner, caller, self.actual_owner, caller_args, self.extra_args)
-        if isinstance(result, NetworkReturnValue):
+        if not isinstance(result, NetworkReturnValue):
             return result
-        elif result:
-            rtn = NetworkReturnValue(caller_args, True, "")
-        else:
-            rtn = NetworkReturnValue(caller_args, False, "argument check error")
-        return rtn
+        return result.value
+        # elif result:
+        #     rtn = NetworkReturnValue(caller_args, True, "")
+        # else:
+        #     rtn = NetworkReturnValue(caller_args, False, "argument check error")
+        # return rtn
 
     def __repr__(self):
         return "StrictWrappedAccessor to {}.{}".format(self.actual_owner, self.signature)
@@ -2559,32 +2999,33 @@ class ExtensibleWrappedAccessor(StrictWrappedAccessor):
     def help_text(self):
         return self._help_text
 
-    def call_impl(self, caller, args, **kwargs):
-        if len(args) > 0 and isinstance(args[0], CommandOption) and args[0].name == "help" and self.help_text is not None:
-            print(self.help_text)
-            return None
-        for pre in self.preprocesses:
-            rtn = pre[0](self.accessor_owner, caller, self.actual_owner, args, self.extra_args)
-            if not pre[1]:
-                return rtn
-        rtn = self.accessor(self.accessor_owner, caller, self.actual_owner, args, self.extra_args)
-        for post in self.postprocesses:
-            rtn = post[0](self.accessor_owner, caller, self.actual_owner, args, self.extra_args)
-            if not post[1]:
-                break
-        return rtn
-
     def args_impl(self, caller, args, **kwargs):
         if self.args_validator is None:
-            return args
+            return super().args_impl(caller, args)
         caller_args = args
         result = self.args_validator(self.accessor_owner, caller, self.actual_owner, caller_args, self.extra_args)
-        if isinstance(result, NetworkReturnValue):
+        if not isinstance(result, NetworkReturnValue):
             return result
-        elif result:
-            rtn = NetworkReturnValue(caller_args, True, "")
-        else:
-            rtn = NetworkReturnValue(caller_args, False, "argument check error")
+        return result.value
+
+    def call_impl(self, caller, args, **kwargs):
+        if len(args) > 0 and isinstance(args[0], CommandOption) and args[0].name == "help" and self.help_text is not None:
+            caller.print(self.help_text)
+            return None
+        args = self.args_impl(caller, args)
+
+        # Checks pre-condition.
+        for pre in self.preprocesses:
+            p = pre(self.accessor_owner, caller, self.actual_owner, args, self.extra_args)
+            if not p:
+                return p
+        # Calls accessor.
+        rtn = self.accessor(self.accessor_owner, caller, self.actual_owner, args, self.extra_args)
+        # Checks post-condition.
+        for post in self.postprocesses:
+            p = post(self.accessor_owner, caller, self.actual_owner, args, self.extra_args)
+            if not p:
+                break
         return rtn
 
     def __repr__(self):
@@ -2609,8 +3050,8 @@ class MethodWrapper(NetworkMethod):
 
 class NetworkGenericWorld(NetworkClass):
 
-    def __init__(self, owner, signature, super_class):
-        super().__init__(owner, signature, super_class)
+    def __init__(self, owner, signature, super_class, embedded=()):
+        super().__init__(owner, signature, super_class, embedded=embedded)
         self._resolvers = []
         self._bound_methods = []
 
@@ -2642,44 +3083,51 @@ class NetworkGenericWorld(NetworkClass):
             raise ex
 
     def get_method(self, caller, sig):
-        m = super().get_method(caller, sig)
-        if m is not None:
-            return m
-        for r in self._resolvers:
-            m = r.get_method(caller, sig)
-            if m is not None:
-                return m
-        return None
+        return super().get_method(caller, sig)
+        # FIXME initially, mediator was planned to decide adequate methods.
+        #       but now instance itself  decides adequateness.
+        # m = super().get_method(caller, sig)
+        # if m is not None:
+        #     return m
+        # for r in self._resolvers:
+        #     m = r.get_method(caller, sig)
+        #     if m is not None:
+        #         return m
+        # return None
 
     def get_bound_method(self, obj, args):
+        # FIXME this method should not be called.
+        print("*** GET_BOUND_METHOD IS DEPRECATED. ***")
         for m in inspect.getmembers(obj, inspect.ismethod):
             if m[0] == args:
                 return m[1]
         return None
 
     def get_bound_methods_info(self, obj, args):
+        # FIXME this method should not be called.
+        print("*** GET_BOUND_METHOD IS DEPRECATED. ***")
         I = []
         for m, _ in inspect.getmembers(obj, inspect.ismethod):
             # if m in args:
             I.append(m)
         return I
 
-    def implement_bound_methods(self, obj, args):
-        R = []
-        for n, m in inspect.getmembers(obj, inspect.ismethod):
-            if n in args:
-                # callee_entity = lambda c, caller, caller_args, generator_args: generator_args[0](caller, caller_args)
-                # method = BoundMethodAvator(obj, n, obj, callee_entity, [m], globally=True)
-                method = BoundMethodAvator(obj, n, obj, m, globally=True)
-                obj.declare_method(method, globally=True)
-                R.append(n)
-        return R
+    # def implement_bound_methods(self, obj, args):
+    #     R = []
+    #     for n, m in inspect.getmembers(obj, inspect.ismethod):
+    #         if n in args:
+    #             # callee_entity = lambda c, caller, caller_args, generator_args: generator_args[0](caller, caller_args)
+    #             # method = BoundMethodAvator(obj, n, obj, callee_entity, [m], globally=True)
+    #             method = BoundMethodAvator(obj, n, obj, m, globally=True)
+    #             obj.declare_method(method, globally=True)
+    #             R.append(n)
+    #     return R
 
 
 class NetworkMethodWrapper(NetworkMethod):
 
     def __init__(self, owner, swapped_context, signature, func, args):
-        super().__init__(owner, signature, args, [], None)
+        super().__init__(owner, signature, args, [])
         self._swapped_context = swapped_context
         self._func = func
 
@@ -2729,14 +3177,6 @@ class ToplevelInstance(NetworkInstance):
     def remove_mediator(self, med):
         self._mediators.remove(med)
 
-    def push_context(self):
-        # stack control ignored
-        pass
-
-    def pop_context(self, context_id):
-        # stack control ignored
-        pass
-
 
 class NetworkSecurityPolicy(GenericDescription):
 
@@ -2761,6 +3201,7 @@ class NetworkSecurityPolicy(GenericDescription):
         desc_pat = r"\s*(?P<type>(property|method))\s+(?P<member>)\s*::\s*(?P<desc>(private|protected|public)(\s*\n)*"
         while True:
             m, d, next_pos = GU.pattern_iter(skip_pat, self.description[pos:])
+
             if m is not None:
                 pos = next_pos
                 continue
@@ -2773,3 +3214,108 @@ class NetworkSecurityPolicy(GenericDescription):
             self._map[m] = {}
             self._map[m]["type"] = t
             self._map[m]["desc"] = desc
+
+
+class MethodArmer(NetworkInstance):
+
+    log = None  # logger.logger
+
+    def __init__(self):
+        super().__init__(None, 0, None)
+        self._conf = GU.read_json("arm.conf")
+
+    def _arm_method(self, sig, instance, generator, manager, method_config):
+        globally = method_config["globally"]
+        m = None
+        if "equation" in method_config.keys():
+            eqn = method_config["equation"]
+            eqn = eval(eqn)
+            if "help-text" in method_config.keys():
+                help_text = method_config["help-text"]
+            else:
+                help_text = "Help text is not prepared."
+            # arguments validator
+            if "args_validator" in method_config.keys():
+                args_validator = eval(method_config["args_validator"])
+            else:
+                args_validator = None
+            # pre processes
+            preprocess = []
+            if "preprocess" in method_config.keys():
+                config = method_config["preprocess"]
+                for p in sorted(config.keys()):
+                    preprocess.append(eval(config[p]))
+            preprocess = tuple(preprocess)
+            # post processes
+            postprocess = []
+            if "postprocess" in method_config.keys():
+                config = method_config["postprocess"]
+                for p in sorted(config.keys()):
+                    postprocess.append(eval(config[p]))
+            postprocess = tuple(postprocess)
+            # Creates wrapped accessor
+            m = ExtensibleWrappedAccessor(instance, sig, manager, eqn,
+                                          help_text=help_text,
+                                          args_validator=args_validator,
+                                          preprocesses=preprocess,
+                                          postprocesses=postprocess,
+                                          globally=globally)
+        elif "script" in method_config.keys():
+            interpreter = instance.get_method(instance, "interpret")
+            if interpreter is None:
+                print("*** INSTANCE '{}' HAS NO INTERPRETER. SCRIPT CANNOT READ.".format(instance))
+            else:
+                script = method_config["script"]
+                m = interpreter(self, [script])
+        elif "script-file" in method_config.keys():
+            with open(method_config["script-file"]) as f:
+                script = f.read()
+            interpreter = instance.get_method(instance, "interpret")
+            if interpreter is None:
+                print("*** INSTANCE '{}' HAS NO INTERPRETER. SCRIPT CANNOT READ.".format(instance))
+            else:
+                m = interpreter(self, [script])
+        else:
+            m = None
+            debug("Invalid configuration description for method {}".format(sig))
+        if m is not None:
+            instance.register_method(instance, sig, m, depth=0, overwrite=None)
+
+    def _arm_methods(self, instance, generator, manager, group, dispatcher):
+        for g in group:
+            for d in dispatcher[g]:
+                method_config = dispatcher[g][d]
+                self._arm_method(d, instance, generator, manager, method_config)
+
+    def _arm_default_interpreter(self, instance, generator, manager):
+        interpreter = IM.get_interpreter(instance, generator, manager)
+        if interpreter is None:
+            print("*** INSTANCE '{}' HAS NO INTERPRETER. FOR THIS, SCRIPT CANNOT BE READ PRESENTLY.".format(instance))
+        else:
+            instance.register_method(instance, interpreter.signature, interpreter)
+
+    def arm_default_methods(self, instance, generator, manager):
+        self._arm_default_interpreter(instance, generator, manager)
+        group = self._conf["method-group"]
+        dispatcher = self._conf["method-dispatcher"]
+        for g in group.keys():
+            if g in instance.embedded_attrib(instance):
+                self._arm_methods(instance, generator, manager, group[g], dispatcher)
+
+    def arm_methods(self, instance, generator, manager):
+        # FIXME current implementation is same to arm_default_methods.
+        self.arm_default_methods(instance, generator, manager)
+        # self._arm_default_interpreter(instance, generator, manager)
+        # group = self._conf["method-group"]
+        # dispatcher = self._conf["method-dispatcher"]
+        # for g in group.keys():
+        #     if g in instance.embedded_attrib(instance):
+        #         self._arm_methods(instance, generator, manager, group[g], dispatcher)
+
+    def arm_method(self, sig, instance, generator, manager, method_config):
+        self._arm_method(sig, instance, generator, manager, method_config)
+
+
+# set default armer
+set_armer(MethodArmer())
+

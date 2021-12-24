@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from generic import GenericDescription
+from networkml.generic import GenericDescription
 
 
 class Description(GenericDescription):

@@ -14,7 +14,7 @@ import traceback
 # from enum import Enum
 
 # import our modules
-from networkml.generic import GenericEvaluatee
+from networkml.generic import GenericEvaluatee, debug, is_debug_mode
 from networkml.error import NetworkError, NetworkParserError, NetworkLexerError
 from networkml.validator import Validatee, ArithmeticModulusEvaluatee, ArithmeticMultiplicableEvaluatee
 from networkml.validator import ArithmeticSubtractalEvaluatee, ArithmeticBinaryEvaluatee, ArithmeticAdditionalEvaluatee
@@ -41,16 +41,17 @@ class NetworkLexer:
         'else': 'ELSE',
         'while': 'WHILE',
         'for': 'FOR',
-        'this': 'THIS',
+        # 'this': 'THIS',
         'class': 'CLASS',
         'function': 'FUNC',
         'return': 'RETURN',
         'break': 'BREAK',
         'global': 'GLOBAL',
-        'private': 'PRIVATE',
-        'protected': 'PROTECTED',
-        'public': 'PUBLIC',
+        # 'private': 'PRIVATE',
+        # 'protected': 'PROTECTED',
+        # 'public': 'PUBLIC',
         'property': 'PROPERTY',
+        'properties': 'PROPERTIES',
         'read': 'READ',
         'write': 'WRITE',
         'and': 'AND',
@@ -61,7 +62,9 @@ class NetworkLexer:
         'True': 'UTRUE',
         'false': 'FALSE',
         'False': 'UFALSE',
-        '$initializer': 'INITIALIZER',
+        'init': 'INIT',
+        'in': "IN",
+        'with': "WITH",
         # '$self': 'SELF',
         # '$generator': 'GENERATOR',
         # '$manager': 'MANAGER',
@@ -81,7 +84,7 @@ class NetworkLexer:
               'SUBST',
               # 'DOUBLEQUOTE',
               'SEMICORON',
-              'COMMENT'
+              # 'COMMENT'
               ] + list(reserved.values())
     token_list = (
         # Reserved words
@@ -111,7 +114,7 @@ class NetworkLexer:
     t_PROPERTY = r"property"
     t_READ = r"read"
     t_WRITE = r"write"
-    t_INITIALIZER = r"\$initializer"
+    t_INIT = r"init"
 
     def t_SYMBOL(self, t):
         r"([a-zA-Z_]+[a-zA-Z_0-9]*\.)*[a-zA-Z_]+[a-zA-Z_0-9]*"
@@ -199,6 +202,7 @@ class NetworkParser:
 
     def p_program(self, p):
         """
+        program : attributed_class_declaration
         program : class_declaration
         program : func_declaration
         program : global_func_declaration
@@ -208,50 +212,70 @@ class NetworkParser:
         if len(p) == 2:
             p[0] = [p[1]]
         elif len(p) == 3:
-            if type(p[2]) is str:
-                p[0] = [p[1]]
-            else:
-                p[1].extend(p[2])
-                p[0] = p[1]
+            p[1].extend(p[2])
+            p[0] = p[1]
+
+    # def p_access(self, p):
+    #     """
+    #     access : PRIVATE
+    #     access : PROTECTED
+    #     access : PUBLIC
+    #     """
+    #     p[0] = p[1]
 
     def p_class_declaration(self, p):
         """
-        class_declaration : CLASS SYMBOL LBRACKET initializer_decl class_member_declarations RBRACKET
-        class_declaration : CLASS SYMBOL LPAR SYMBOL RPAR LBRACKET initializer_decl class_member_declarations RBRACKET
+        class_declaration : CLASS SYMBOL LBRACKET init_declaration class_member_declarations RBRACKET
+        class_declaration : CLASS SYMBOL LPAR SYMBOL RPAR LBRACKET init_declaration class_member_declarations RBRACKET
         """
         if len(p) == 7:
-            # clazz = NetworkClassInstance(None, p[1], self.owner, super_class=None, lexdata=p.lexer.lexdata)
-            clazz = NetworkClassInstance(None, p[1], self.owner, super_class=None)
-            self.init_clazz(clazz, p[4], p[5])
+            clazz = NetworkClassInstance(self.owner, p[2], self.owner, super_class=None)
+            clazz.init_clazz(p[4], p[5])
         elif len(p) == 10:
-            # clazz = NetworkClassInstance(None, p[1], self.owner, super_class=p[4], init_args=(), lexdata=p.lexer.lexdata)
-            clazz = NetworkClassInstance(None, p[1], self.owner, super_class=p[4])
-            self.init_clazz(clazz, p[7], p[8])
+            clazz = NetworkClassInstance(self.owner, p[2], self.owner, super_class=p[4])
+            clazz.init_clazz(p[7], p[8])
         else:
             raise NetworkParserError(p)
         p[0] = clazz
 
-    def p_initializer_decl(self, p):
+    def p_attributed_class_declaration(self, p):
         """
-        initializer_decl : INITIALIZER empty_tuple      LBRACKET executions RBRACKET
-        initializer_decl : INITIALIZER func_args_tuple  LBRACKET executions RBRACKET
+        attributed_class_declaration : CLASS SYMBOL class_embedded_attributes LBRACKET init_declaration class_member_declarations RBRACKET
+        attributed_class_declaration : CLASS SYMBOL class_embedded_attributes LPAR SYMBOL RPAR LBRACKET init_declaration class_member_declarations RBRACKET
         """
-        method = NetworkMethod(self.owner, p[1], args=p[2], stmts=p[4], globally=False, lexdata=p.lexer.lexdata)
-        p[0] = method
+        if len(p) == 8:
+            embedded = tuple([(_, _) for _ in p[3]])
+            clazz = NetworkClassInstance(self.owner, p[3], self.owner, embedded=embedded, super_class=None)
+            clazz.init_clazz(p[5], p[6])
+        elif len(p) == 11:
+            embedded = tuple([(_, _) for _ in p[3]])
+            clazz = NetworkClassInstance(self.owner, p[3], self.owner, embedded=embedded, super_class=p[5])
+            clazz.init_clazz(p[8], p[9])
+        else:
+            raise NetworkParserError(p)
+        p[0] = clazz
+
+    def p_class_embedded_attributes(self, p):
+        """
+        class_embedded_attributes : WITH PROPERTIES SYMBOL
+        class_embedded_attributes : class_embedded_attributes COMMA SYMBOL
+        """
+        if type(p[1]) is str:
+            p[0] = [p[3]]
+        else:
+            p[1].append(p[3])
+            p[0] = p[1]
 
     def p_class_member_declarations(self, p):
         """
         class_member_declarations : property_declaration
         class_member_declarations : func_declaration
-        class_member_declarations : executions
         class_member_declarations : class_declaration
         class_member_declarations : class_member_declarations class_member_declarations
         """
+        # class_member_declarations : single_execution
         if len(p) == 2:
-            if type(p[1]) is list:
-                p[0] = p[1]
-            else:
-                p[0] = [p[1]]
+            p[0] = [p[1]]
         elif len(p) == 3:
             p[1].extend(p[2])
             p[0] = p[1]
@@ -260,50 +284,54 @@ class NetworkParser:
 
     def p_property_declaration(self, p):
         """
-        property_declaration : PROPERTY SYMBOL             LBRACKET executions RBRACKET
         property_declaration : PROPERTY SYMBOL READ        LBRACKET executions RBRACKET
         property_declaration : PROPERTY SYMBOL      WRITE  LBRACKET executions RBRACKET
         property_declaration : PROPERTY SYMBOL READ WRITE  LBRACKET executions RBRACKET
         """
-        if len(p) == 6:
-            method = NetworkMethod(self.owner, p[2], args=p[3], stmts=p[5], globally=False, lexdata=p.lexer.lexdata)
-            p[0] = method
-        elif len(p) == 7:
-            method = NetworkMethod(self.owner, p[2], args=p[3], stmts=p[5], globally=False, lexdata=p.lexer.lexdata)
+        # FIXME
+        if len(p) == 7:
+            method = NetworkMethod(self.owner, p[2], args=tuple(p[3]), stmts=p[4], globally=False)
             p[0] = method
         elif len(p) == 8:
-            method = NetworkMethod(self.owner, p[2], args=p[3], stmts=p[5], globally=False, lexdata=p.lexer.lexdata)
+            method = NetworkMethod(self.owner, p[2], args=(p[3], p[4]), stmts=p[5], globally=False)
             p[0] = method
         else:
             raise NetworkParserError(p)
 
+    def p_init_declaration(self, p):
+        """
+        init_declaration : INIT func_args_tuple  LBRACKET executions RBRACKET
+        """
+        method = NetworkMethod(self.owner, p[1], args=p[2][0], stmts=p[4], globally=True)
+        p[0] = method
+
     def p_func_declaration(self, p):
         """
-        func_declaration : FUNC SYMBOL empty_tuple      LBRACKET executions RBRACKET
         func_declaration : FUNC SYMBOL func_args_tuple  LBRACKET executions RBRACKET
         """
         if len(p) == 7:
-            method = NetworkMethod(self.owner, p[2], args=p[3], stmts=p[5], globally=False, lexdata=p.lexer.lexdata)
+            method = NetworkMethod(self.owner, p[2], args=p[3][0], stmts=p[5], globally=False, lexdata=p.lexer.lexdata)
             p[0] = method
         else:
             raise NetworkParserError(p)
 
     def p_global_func_declaration(self, p):
         """
-        global_func_declaration : GLOBAL FUNC SYMBOL empty_tuple     LBRACKET executions RBRACKET
         global_func_declaration : GLOBAL FUNC SYMBOL func_args_tuple LBRACKET executions RBRACKET
         """
         if len(p) == 8:
-            method = NetworkMethod(self.owner, p[3], args=p[4], stmts=p[6], globally=True, lexdata=p.lexer.lexdata)
+            method = NetworkMethod(self.owner, p[3], args=p[4][0], stmts=p[6], globally=True, lexdata=p.lexer.lexdata)
             p[0] = method
         else:
             raise NetworkParserError(p)
 
     def p_func_arg_option(self, p):
         """
-        func_arg_option : OPTION
+        func_arg_option : OPTION SUBST string
+        func_arg_option : OPTION SUBST int
+        func_arg_option : OPTION SUBST bool
         """
-        option = CommandOption(p[1], has_assignee=False)
+        option = CommandOption(p[1], value=p[3], has_assignee=True)
         p[0] = option
 
     def p_func_arg_options(self, p):
@@ -326,13 +354,11 @@ class NetworkParser:
         func_args_tuple : func_opened_args_tuple COMMA func_arg_options RPAR
         """
         if len(p) == 2:
-            p[0] = p[1]
+            p[0] = (tuple(p[1]), ())
         elif len(p) == 3:
-            p[0] = p[1]
+            p[0] = (tuple(p[1]), ())
         elif len(p) == 5:
-            p[0] = p[1]
-            options = p[3]
-            p[0].append(options)
+            p[0] = (tuple(p[1]), tuple(p[3]))
         else:
             raise NetworkParserError(p)
 
@@ -420,6 +446,8 @@ class NetworkParser:
 
     def p_subst_callee(self, p):
         """
+        subst_callee : class_declaration
+        subst_callee : func_declaration
         subst_callee : method_call
         subst_callee : arith_oper
         subst_callee : int
@@ -457,11 +485,11 @@ class NetworkParser:
         subst = NetworkSubstituter(self.owner, writee, callee, globally=globally)
         p[0] = subst
 
-    def p_natural_number(self, p):
-        """
-        natural_number : NUMBER
-        """
-        p[0] = int(p[1])
+    # def p_natural_number(self, p):
+    #     """
+    #     natural_number : NUMBER
+    #     """
+    #     p[0] = int(p[1])
 
     def p_empty_tuple(self, p):
         """
@@ -568,19 +596,6 @@ class NetworkParser:
         reference : complex_symbol
         """
         p[0] = p[1]
-
-    def p_args_tuple(self, p):
-        """
-        args_tuple : func_args_tuple
-        args_tuple : empty_tuple
-        """
-        if type(p[1]) is str:
-            args = []
-            for a in p[1]:
-                args.append(SimpleVariable(self.owner, a, None))
-        else:
-            args = p[1]
-        p[0] = args
 
     def p_method_args_tuple(self, p):
         """
@@ -772,7 +787,7 @@ class NetworkParser:
         method_argumental_tuple : empty_tuple
         method_argumental_tuple : method_args_tuple
         """
-        p[0] = p[1]
+        p[0] = tuple(p[1])
 
     def p_method_call(self, p):
         """
@@ -780,11 +795,11 @@ class NetworkParser:
         """
         p[0] = NetworkMethodCaller(self.owner, p[1], p[2])
 
-    def p_number(self, p):
-        """
-        number : natural_number
-        """
-        p[0] = p[1]
+    # def p_number(self, p):
+    #     """
+    #     number : natural_number
+    #     """
+    #     p[0] = p[1]
 
     def p_arith_oper(self, p):
         """
@@ -872,25 +887,6 @@ class NetworkParser:
         """
         p[0] = p[1]
 
-    def p_opened_optional_tuple(self, p):
-        """
-        opened_optional_tuple : LPAR option
-        opened_optional_tuple : opened_optional_tuple COMMA option
-        """
-        if len(p) == 3:
-            p[0] = [p[2]]
-        elif len(p) == 4:
-            p[0] = p[1]
-            p[0].append(p[3])
-        else:
-            raise NetworkParserError(p)
-
-    def p_optional_tuple(self, p):
-        """
-        optional_tuple : opened_optional_tuple RPAR
-        """
-        p[0] = tuple(p[1])
-
     def p_option_assignee(self, p):
         """
         option_assignee : reference
@@ -940,11 +936,11 @@ class NetworkParser:
         else:
             raise NetworkParserError(p)
 
-    def p_file(self, p):
-        """
-        file : string
-        """
-        p[0] = p[1]
+    # def p_file(self, p):
+    #     """
+    #     file : string
+    #     """
+    #     p[0] = p[1]
 
     def p_spec_symbolic_operand(self, p):
         """
@@ -1438,7 +1434,7 @@ class NetworkParser:
     # if error occurred
     def p_error(self, p):
         print('Syntax error: %d: %d: %r' % (p.lineno, p.lexpos, p.value))
-        raise NetworkLexerError(p)
+        raise NetworkParserError(p)
 
     def __init__(self, owner):
         self._owner = owner

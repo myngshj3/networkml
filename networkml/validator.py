@@ -72,7 +72,7 @@ class MultiArityEvaluatee(GenericComponent, GenericEvaluatee):
             validator = caller.validator
         for i in range(self.arity):
             if validator is None or not self.get_symbolic(i):
-                rtn.append(self.nth(i))
+                rtn.append(self._evaluatees[i])
             else:
                 if isinstance(self._evaluatees[i], GenericEvaluatee):
                     rtn.append(self._evaluatees[i].evaluate(caller))

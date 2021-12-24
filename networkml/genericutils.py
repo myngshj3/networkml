@@ -10,10 +10,10 @@ import xml.etree.ElementTree as ET
 def rematch(pattern, target, groupdict=True):
     m = re.match(pattern, target)
     if m is None:
-        return None
+        return None, None
     if groupdict:
         return m, m.groupdict()
-    return m
+    return m, None
 
 
 def re_match(pattern, target, groupdict=True):

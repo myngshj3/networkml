@@ -1,18 +1,71 @@
 # -*- coding: utf-8 -*-
 
-import re
-import ply.lex as lex
-import ply.yacc as yacc
-import sys
-import traceback
-import networkx as nx
-import openpyxl
 import os
-import json
-import sys
-import inspect
+import re
 from enum import Enum
 from networkml.error import NetworkError, NetworkNotImplementationError
+from networkml import config
+import log4p
+
+
+_debug = True
+_traceback = True
+_print_info = True
+_print_fatal = True
+
+
+def is_debug_mode():
+    return _debug
+
+
+def set_debug(flag):
+    global _debug
+    _debug = flag
+
+
+def is_traceback():
+    return _traceback
+
+
+def set_traceback(flag):
+    global _traceback
+    _traceback = flag
+
+
+def debug(*args):
+    global _debug
+    if _debug:
+        msg = args[0]
+        for a in args[1:]:
+            msg = "{} {}".format(msg, a)
+        print(msg)
+
+
+def print_debug(*args):
+    global _debug
+    if _debug:
+        msg = args[0]
+        for a in args[1:]:
+            msg = "{} {}".format(msg, a)
+        print(msg)
+
+
+def print_info(*args):
+    global _print_info
+    if _debug:
+        msg = args[0]
+        for a in args[1:]:
+            msg = "{} {}".format(msg, a)
+        print(msg)
+
+
+def print_fatal(*args):
+    global _print_fatal
+    if _debug:
+        msg = args[0]
+        for a in args[1:]:
+            msg = "{} {}".format(msg, a)
+        print(msg)
 
 
 class Generic:
@@ -148,6 +201,8 @@ class ValueHolder(GenericValueHolder):
 
 class GenericComponent(Generic):
 
+    _log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, owner):
         self._owner = owner
 
@@ -157,6 +212,10 @@ class GenericComponent(Generic):
 
     def set_owner(self, owner):
         self._owner = owner
+
+    @property
+    def log(self):
+        return self._log
 
 
 class GenericValidator(Generic):

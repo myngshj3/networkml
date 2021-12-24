@@ -2,28 +2,26 @@
 
 import re
 import traceback
-import inspect
-import networkx as nx
-import openpyxl
 import os
-import json
 import sys
 import inspect
 from enum import Enum
 from networkml.error import NetworkError, NetworkLexerError, NetworkParserError
-from networkml.network import NetworkVariable, SimpleVariable, NetworkResolver, WrappedAccessor, StrictWrappedAccessor
-from networkml.network import NetworkGenericWorld
 from networkml.network import NetworkCallable, CommandOption, NetworkReturnValue
 from networkml.network import NetworkClassInstance, NetworkInstance, NetworkMethod, NetworkMethodCaller, NetworkTextSerializer
 from networkml.generic import GenericValueHolder
-from networkml.specnetwork import SpecValidator, SpecificationGraph
 from networkml.lexer import NetworkParser
+from networkml.generic import debug
+import networkml.genericutils as GU
+import networkml.admin
+import subprocess
+from subprocess import PIPE
 
 
 class NetworkInterpreter(NetworkMethod):
 
     def __init__(self, method_owner):
-        super().__init__(method_owner, "interpret", ["script", "parser"], [])
+        super().__init__(method_owner, "interpret", ("script", "parser"), (), cancel_stacking=True)
         self._parser = NetworkParser(method_owner)
         self._options = []
 
@@ -43,7 +41,7 @@ class NetworkInterpreter(NetworkMethod):
             if isinstance(a, CommandOption):
                 self._options.append(a)
             else:
-                print("args[{}] ignored.".format(i))
+                debug("args[{}] ignored.".format(i))
         return new_args
 
     def interpret_impl(self, caller, script, parser):
@@ -55,24 +53,32 @@ class NetworkInterpreter(NetworkMethod):
             try:
                 return self.actual_interpret(caller, script, parser)
             except NetworkLexerError as ex:
-                print("LexerError:", ex.message)
-                # ex.detail()
+                caller.print(ex.message)
+                caller.print(ex.detail())
             except NetworkParserError as ex:
-                print("ParserError: ", ex.message)
+                caller.print(ex.message)
+                caller.print(ex.detail())
             except NetworkError as ex:
-                print("Network error:()".format(script))
+                caller.print("Interpreter error:{}".format(script))
                 while ex is not None and isinstance(ex, NetworkError):
-                    print("NetworkError: ", ex.message)
+                    caller.print(ex.message)
                     ex = ex.cause
                 if ex is not None:
-                    print(type(ex), ex)
+                    caller.print(ex)
             except Exception as ex:
-                print(type(ex), ex)
-
+                caller.print(ex)
         else:
             return self.actual_interpret(caller, script, parser)
 
     def actual_interpret(self, caller, script, parser):
+        m, g = GU.rematch(r"^\s*cmd:\s*", script)
+        if m is not None:
+            script = script[m.span()[1]:]
+            tokens = admin.parse_command(script)
+            proc = subprocess.run(tokens, shell=True, stdout=PIPE, stderr=PIPE)
+            data = proc.stdout
+            caller.print(data.decode("shift-jis"))
+            return
         result = parser.parse_script(script)
         rtn = None
         if type(result) is not list:

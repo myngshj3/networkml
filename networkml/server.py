@@ -7,6 +7,7 @@ import sys
 import queue
 import re
 import enum
+from networkml.generic import debug, is_debug_mode
 from networkml.consensus import Consensus, ConsensusError, ConsensusConfused, ConsensusReset
 
 
@@ -14,6 +15,59 @@ class ForceQuit(Exception):
 
     def __init__(self, msg):
         super().__init__(msg)
+
+
+class ControlNotify(Exception):
+
+    def __init__(self, msg, desc):
+        super().__init__(msg)
+        self._desc = desc
+
+    @property
+    def desc(self):
+        return self._desc
+
+
+class PreConsensusTroubleNotify(ControlNotify):
+
+    def __init__(self, msg, desc):
+        super().__init__(msg, desc)
+
+
+class QuitNotify(ControlNotify):
+
+    def __init__(self, msg, desc):
+        super().__init__(msg, desc)
+
+
+class ResetNotify(ControlNotify):
+
+    def __init__(self, msg, desc):
+        super().__init__(msg, desc)
+
+
+class ReaderResetNotify(ControlNotify):
+
+    def __init__(self, msg, desc):
+        super().__init__(msg, desc)
+
+
+class WriterResetNotify(ControlNotify):
+
+    def __init__(self, msg, desc):
+        super().__init__(msg, desc)
+
+
+class ConsensusBuildNotify(ControlNotify):
+
+    def __init__(self, msg, desc):
+        super().__init__(msg, desc)
+
+
+class AlgorithmUpdateNotify(ControlNotify):
+
+    def __init__(self, msg, desc):
+        super().__init__(msg, desc)
 
 
 class SocketConnectionBrokenError(RuntimeError):
@@ -47,9 +101,14 @@ class AutonomousWorker(threading.Thread):
         self._debug = True
         self._consensus_err_quits = ()
         self._consensus_err_deals = ()
+        self._consensus_err_breaks = ()
         self._consensus_err_ignores = ()
 
+    def get_method(self, caller, sig):
+        return self._obj.get_method(caller, sig)
+
     def organize(self):
+        debug("Organizing...")
         self.set_init_exception_handlers()
 
     def finalize(self):
@@ -63,16 +122,15 @@ class AutonomousWorker(threading.Thread):
         return self._sock
 
     def set_init_exception_handlers(self):
+        breaks = ((SocketConnectionBrokenError(""), "break"), (ForceQuit(""), None))
         deals = (
-            (ConsensusReset, self._consensus.ConsensusKeywords.AcceptReset, "your reset request was accepted."),
-            (ConsensusConfused, self._consensus.ConsensusKeywords.AcceptConfused, "your confusion observed."),
-            (ConsensusError, self._consensus.ConsensusKeywords.Reset, "protocol procedure is illegal."),
-            (socket.timeout, self._consensus.ConsensusKeywords.Reset, "your request time out. reset your procedure."))
-        quits = (
-            (ForceQuit, None),
-            (SocketConnectionBrokenError, None))
-        ignores = ((Exception, None),)
-        self.set_consensus_err_handlers(quits, deals, ignores)
+            (ConsensusReset(""), self._consensus.ConsensusKeywords.AcceptReset, "your reset request was accepted."),
+            (ConsensusConfused(""), self._consensus.ConsensusKeywords.AcceptConfused, "your confusion observed."),
+            (ConsensusError(""), self._consensus.ConsensusKeywords.Reset, "protocol procedure is illegal."),
+            (socket.timeout(), self._consensus.ConsensusKeywords.Reset, "your request time out. reset your procedure."))
+        quits = ()
+        ignores = ((Exception(""), None),)
+        self.set_consensus_err_handlers(quits, deals, breaks, ignores)
 
     @property
     def consensus_err_quits(self):
@@ -83,14 +141,20 @@ class AutonomousWorker(threading.Thread):
         return self._consensus_err_deals
 
     @property
+    def consensus_err_breaks(self):
+        return self._consensus_err_breaks
+
+    @property
     def consensus_err_ignores(self):
         return self._consensus_err_ignores
 
-    def set_consensus_err_handlers(self, quits=(), deals=(), ignores=()):
+    def set_consensus_err_handlers(self, quits=(), deals=(), breaks=(), ignores=()):
         if quits is not None:
             self._consensus_err_quits = quits
         if deals is not None:
             self._consensus_err_deals = deals
+        if breaks is not None:
+            self._consensus_err_breaks = breaks
         if ignores is not None:
             self._consensus_err_ignores = ignores
 
@@ -106,14 +170,14 @@ class AutonomousWorker(threading.Thread):
     def receive(self, sock, length, once=False):
         # self.debug(sock, length, once)
         if once:
-            self.debug("began receiving.")
+            debug("began receiving.")
             chunk = sock.recv(length)
-            self.debug("done.")
+            debug("done.")
             if chunk == b'':
                 raise SocketConnectionBrokenError("socket connection broken observed. b'' received.")
-            self.debug("message receive completed. {} bytes read".format(len(chunk)))
+            debug("message receive completed. {} bytes read".format(len(chunk)))
             return chunk
-        self.debug("began receiving.")
+        debug("began receiving.")
         chunks = []
         bytes_recd = 0
         while bytes_recd < length:
@@ -124,8 +188,8 @@ class AutonomousWorker(threading.Thread):
             if len(chunk) == 0:
                 break
             bytes_recd = bytes_recd + len(chunk)
-            self.debug(bytes_recd, "has read.")
-        self.debug("message receive completed. {} bytes read".format(bytes_recd))
+            debug(bytes_recd, "has read.")
+        debug("message receive completed. {} bytes read".format(bytes_recd))
         msg = b''.join(chunks)
         return msg
 
@@ -139,157 +203,187 @@ class AutonomousWorker(threading.Thread):
                 msg = "{} {}".format(msg, a)
             print(msg)
 
+    def pre_process_request(self):
+        pass
+
+    def post_process_request(self):
+        pass
+
     def process_request(self):
+        self.pre_process_request()
         sock = self.rw_sock
-        # if self.is_post_reset:  # wait for Ack, if just after Reset.
-        #     self.debug(0, "waiting for", self._consensus.ConsensusKeywords.Ack.value)
-        #     res = self.receive(sock, 128, once=True)
-        #     self.debug("done")
-        #     _ = self._consensus.decode_received_data(res, self._consensus.ConsensusKeywords.Ack)
-        #     self._is_post_reset = False
-        # waiting for ack for reset
         i = 1
-        self.debug(i, "waiting for", self._consensus.ConsensusKeywords.BeginRequest.value)
+        debug(i, "waiting for", self._consensus.ConsensusKeywords.BeginRequest.value)
         req = self.receive(sock, 128, once=True)
-        self.debug("done")
+        debug("done")
         length = self._consensus.decode_received_data(req, self._consensus.ConsensusKeywords.BeginRequest)
         i = i+1
-        self.debug(i, "sending", self._consensus.ConsensusKeywords.AcceptBeginRequest.value)
+        debug(i, "sending", self._consensus.ConsensusKeywords.AcceptBeginRequest.value)
         req = self._consensus.encode_sending_data("", self._consensus.ConsensusKeywords.AcceptBeginRequest)
         self.send_msg(sock, req)
-        self.debug("done")
+        debug("done")
         # receive request
         i = i+1
-        self.debug(i, "waiting for", self._consensus.ConsensusKeywords.SendRequest.value)
+        debug(i, "waiting for", self._consensus.ConsensusKeywords.SendRequest.value)
         req = self.receive(sock, length)
-        self.debug("done")
+        debug("done")
         req_msg = self._consensus.decode_received_data(req, self._consensus.ConsensusKeywords.SendRequest)
         i = i+1
-        self.debug(i, "sending ", self._consensus.ConsensusKeywords.AcceptSendRequest.value)
+        debug(i, "sending ", self._consensus.ConsensusKeywords.AcceptSendRequest.value)
         req = self._consensus.encode_sending_data("", self._consensus.ConsensusKeywords.AcceptSendRequest)
         self.send_msg(sock, req)
-        self.debug("done")
+        debug("done")
         # end request
         i = i+1
-        self.debug(i, "waiting for", sock, self._consensus.ConsensusKeywords.EndRequest.value)
+        debug(i, "waiting for", self._consensus.ConsensusKeywords.EndRequest.value)
         req = self.receive(sock, 128, once=True)
-        self.debug("done")
+        debug("done")
         _ = self._consensus.encode_sending_data(req, self._consensus.ConsensusKeywords.EndRequest)
         i = i+1
-        self.debug(i, "sending", sock, self._consensus.ConsensusKeywords.AcceptEndRequest.value)
+        debug(i, "sending", self._consensus.ConsensusKeywords.AcceptEndRequest.value)
         req = self._consensus.encode_sending_data("", self._consensus.ConsensusKeywords.AcceptEndRequest)
         self.send_msg(sock, req)
 
         # process request
-        res_msg = req_msg  # self._obj.interpret(msg)
-        print(req_msg, res_msg)
+        try:
+            interpreter = self._obj.get_method(self._obj, "interpret")
+            if interpreter is None:
+                res_msg = "NG, {} has no interpreter.".format(self._name)
+            else:
+                # res_msg = interpreter(self._obj, [req_msg])
+                interpreter(self._obj, [req_msg])
+                res_msg = self._obj.flush_print_buf()
+        except Exception as ex:
+            res_msg = "NG,{}".format(ex)
 
         # begin response
         i = i+1
+        debug(i, "waiting for", self._consensus.ConsensusKeywords.WaitResponse.value)
+        res = self.receive(sock, 128, once=True)
+        _ = self._consensus.encode_sending_data(res, self._consensus.ConsensusKeywords.WaitResponse)
+        debug("done")
+        i = i+1
         res_msg = self._consensus.encode_sending_data(res_msg, self._consensus.ConsensusKeywords.SendResponse)
         res = self._consensus.encode_sending_data(len(res_msg), self._consensus.ConsensusKeywords.BeginResponse)
-        self.debug(i, "sending", "with", len(res_msg), res_msg, self._consensus.ConsensusKeywords.BeginResponse.value)
+        debug(i, "sending", "with", len(res_msg), res_msg, self._consensus.ConsensusKeywords.BeginResponse.value)
         self.send_msg(sock, res)
         # sock.send(res)
-        self.debug("done")
+        debug("done")
         i = i+1
-        self.debug(i, "waiting for", self._consensus.ConsensusKeywords.AcceptBeginResponse.value)
+        debug(i, "waiting for", self._consensus.ConsensusKeywords.AcceptBeginResponse.value)
         res = self.receive(sock, 128, once=True)
-        self.debug("done")
+        debug("done")
         _ = self._consensus.decode_received_data(res, self._consensus.ConsensusKeywords.AcceptBeginResponse)
         # send response. content is already encoded preliminarily.
         i = i+1
-        self.debug(i, "sending", self._consensus.ConsensusKeywords.SendResponse.value)
+        debug(i, "sending", self._consensus.ConsensusKeywords.SendResponse.value)
         self.send_msg(sock, res_msg)
-        self.debug("done")
+        debug("done")
         i = i+1
-        self.debug(i, "waiting for", self._consensus.ConsensusKeywords.AcceptSendResponse.value)
+        debug(i, "waiting for", self._consensus.ConsensusKeywords.AcceptSendResponse.value)
         res = self.receive(sock, 128, once=True)
-        self.debug("done")
+        debug("done")
         _ = self._consensus.decode_received_data(res, self._consensus.ConsensusKeywords.AcceptSendResponse)
         # end response
         i = i+1
-        self.debug(i, "sending", self._consensus.ConsensusKeywords.EndResponse.value)
+        debug(i, "sending", self._consensus.ConsensusKeywords.EndResponse.value)
         res = self._consensus.encode_sending_data("", self._consensus.ConsensusKeywords.EndResponse)
         self.send_msg(sock, res)
-        self.debug("done")
+        debug("done")
         i = i+1
-        self.debug(i, "waiting for", self._consensus.ConsensusKeywords.AcceptEndResponse.value)
+        debug(i, "waiting for", self._consensus.ConsensusKeywords.AcceptEndResponse.value)
         res = self.receive(sock, 128, once=True)
-        self.debug("done")
+        debug("done")
         _ = self._consensus.decode_received_data(res, self._consensus.ConsensusKeywords.AcceptEndResponse)
 
+        rtn = self.post_process_request()
         # process response
-        self.debug("Request successfully proceeded")
+        debug("Request successfully proceeded with '{}'".format(rtn))
+        return rtn
 
     def process_request_loop(self):
         while not self._quit:
             try:
 
-                self.process_request()
+                rtn = self.process_request()
+                # analyzes purpose of Exception return not raise.
+                debug("returned type", type(rtn))
+                if isinstance(rtn, Exception):
+                    debug("analyzing exception")
+                    for r in self._consensus_err_breaks:
+                        debug(r)
+                        if isinstance(rtn, type(r[0])):
+                            if r[1] == "return":
+                                return rtn
+                            elif r[1] == "raise":
+                                raise rtn
+                            else:
+                                debug("Breaking reason:", rtn)
+                                break
 
             except Exception as ex:
-                repeat = False
+                breaking = False
+                continuing = False
+                for r in self._consensus_err_breaks:
+                    debug(r)
+                    if isinstance(ex, type(r[0])):
+                        if r[1] == "return":
+                            return ex
+                        elif r[1] == "raise":
+                            raise ex
+                        else:
+                            breaking = True
+                            debug("Breaking reason:", ex)
+                            break
+                if breaking:
+                    break
+                if continuing:
+                    continue
+                exit("Unexpected reach")
                 for q in self._consensus_err_quits:
-                    if isinstance(ex, q[0]):
-                        print("quit,", ex)
+                    if isinstance(ex, type(q[0])):
+                        debug("quit,", ex)
                         self._quit = True
                         repeat = True
-                        break
-                if repeat:
+                        if q[1] == "raise":
+                            raise ex
+                        elif q[1] == "break":
+                            breaking = True
+                            break
+                        else:
+                            continuing = True
+                            break
+                if breaking:
+                    break
+                if continuing:
                     continue
                 for deal in self._consensus_err_deals:
-                    if isinstance(ex, deal[0]):
-                        print("deals,", ex, deal[1])
+                    if isinstance(ex, type(deal[0])):
+                        debug("deals,", ex)
                         ack = self._consensus.encode_sending_data(deal[2], deal[1])
                         self.send_msg(self.rw_sock, ack)
-                        repeat = True
+                        continuing = True
                         break
-                if repeat:
+                if breaking:
+                    break
+                if continuing:
                     continue
                 for ignore in self._consensus_err_ignores:
-                    if isinstance(ex, ignore[0]):
-                        print("ignored,", ex)
+                    if isinstance(ex, type(ignore[0])):
+                        debug("ignored,", ex)
                         # ignore
-                        repeat = True
+                        continuing = True
                         break
-                if repeat:
+                if breaking:
+                    break
+                if continuing:
                     continue
-                print(ex)
+                debug(ex)
                 continue
 
-            # except ConsensusReset as ex:
-            #     print(ex)
-            #     ack = self._consensus.encode_sending_data("your reset request was accepted.",
-            #                                               self._consensus.ConsensusKeywords.AcceptReset)
-            #     self.send_msg(self.rw_sock, ack)
-            #     print("Reset request was properly proceeded.")
-            # except ConsensusConfused as ex:
-            #     print("confusion observed.", ex)
-            #     ack = self._consensus.encode_sending_data("your confutsion observed.",
-            #                                               self._consensus.ConsensusKeywords.AcceptConfused)
-            #     self.send_msg(self.rw_sock, ack)
-            # except ConsensusError as ex:
-            #     print("protocol procedural violation observed.", ex, "sending reset.")
-            #     reset = self._consensus.encode_sending_data("your protocol procedure is illegal.",
-            #                                                 self._consensus.ConsensusKeywords.Reset)
-            #     self.send_msg(self.rw_sock, reset)
-            # except socket.timeout as ex:
-            #     print(ex)
-            #     reset = self._consensus.encode_sending_data("your request process time out. reset your procedure.",
-            #                                                 self._consensus.ConsensusKeywords.Reset)
-            #     self.send_msg(self.rw_sock, reset)
-            # except SocketConnectionBrokenError as ex:
-            #     print(ex)
-            #     self._quit = False
-            # except ForceQuit as ex:
-            #     self._quit = True
-            #     raise ex
-            # except Exception as ex:
-            #     print(ex)
         # requests release of self
         if self._manager is not None:
-            self._manager.release(self)
+            self._manager.finished(self)
 
 
 class DiplomacyWorker(AutonomousWorker):
@@ -319,9 +413,10 @@ class WorkerDispacher(AutonomousWorker):
         self._workers = {}
         self._client = None
         self._client_address = None
+        self._forked = None
 
     def organize(self):
-        # super().organize()
+        super().organize()
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.bind((self._hostname, self._port))
         self._sock.listen(self._listens)
@@ -337,29 +432,43 @@ class WorkerDispacher(AutonomousWorker):
     def rw_sock(self):
         return self._client
 
+    class TopLevelLoop(Exception):
+
+        def __init__(self, msg):
+            super().__init__(msg)
+
     def set_init_exception_handlers(self):
+        breaks = ((self.TopLevelLoop("return to toplevel loop"), "return"),
+                  (SocketConnectionBrokenError("connection reset and return to toplevel."), "return"))
         deals = (
-            (ConsensusConfused, self._consensus.ConsensusKeywords.AcceptConfused, "your confutsion observed."),
-            (ConsensusError, self._consensus.ConsensusKeywords.Reset, "protocol procedure is illegal."),
-            (socket.timeout, self._consensus.ConsensusKeywords.Reset, "your request time out. reset your procedure."))
-        quits = (
-            (ForceQuit, None),
-            (SocketConnectionBrokenError, None))
+            (ConsensusConfused(), self._consensus.ConsensusKeywords.AcceptConfused, "your confutsion observed."),
+            (ConsensusError("protocol procedure is illegal."), self._consensus.ConsensusKeywords.Reset, "protocol procedure is illegal."),
+            (socket.timeout(), self._consensus.ConsensusKeywords.Reset, "your request time out. reset your procedure."))
+        quits = ((ForceQuit("force quit"), None),)
         ignores = (
-            (ConsensusReset, "your reset request was accepted."),
-            (Exception, None),)
-        self.set_consensus_err_handlers(quits, deals, ignores)
+            (ConsensusReset("reset"), "your reset request was accepted."),
+            (Exception(""), None),)
+        self.set_consensus_err_handlers(quits, deals, breaks, ignores)
 
     def accept_connection(self):
-        print("waiting for client connection.")
-        sock, address = self._sock.accept()
-        print(f"Connection from {address} has been established!")
-        self._client = sock
-        self._client_address = address
+        if self.client_sock is None:
+            debug("waiting for client connection.")
+            sock, address = self._sock.accept()
+            debug(f"Connection from {address} has been established!")
+            self._client = sock
+            self._client_address = address
 
     @property
     def client(self):
         return self._client
+
+    @property
+    def client_sock(self):
+        return self._client
+
+    @property
+    def client_address(self):
+        return self._client_address
 
     def reset_client(self):
         self._client = None
@@ -369,9 +478,11 @@ class WorkerDispacher(AutonomousWorker):
         return self._hostname, self._port, self._listens
 
     def fork(self, worker_name, worker):
-        worker = AutonomousWorker(worker_name, worker, self, self.client)
+        debug("forking...", worker_name, ":", worker)
+        worker = AutonomousWorker(worker_name, worker, self, self.client_sock)
         self._workers[worker_name] = worker
-        worker.start()
+        self._forked = worker
+        debug("forked", worker_name, ":", worker)
 
     def release(self, worker):
         a = None
@@ -382,21 +493,63 @@ class WorkerDispacher(AutonomousWorker):
             self._workers.pop(a)
             worker.finalize()
 
+    def finished(self, worker):
+        self.release(worker)
+
+    def pre_process_request(self):
+        if self.client_sock is None:
+            debug("Bug!!! unexpeced reachability to here.")
+            t = input("$ what do you do? abort? or continue? ")
+            if t == "abort":
+                raise ForceQuit("Unreachable state")
+            else:
+                self.accept_connection()
+
+    def post_process_request(self):
+        debug("**** post_process_request entered.")
+        if self._forked is not None:
+            debug("**** activating forked thread.")
+            self.reset_client()
+            self._forked.start()
+            self._forked = None
+            return self.TopLevelLoop("for accepting new client access.")
+
     def process_request_loop(self):
         while not self._quit:
             try:
 
                 self.accept_connection()
 
-                super().process_request_loop()
+                debug("begin request process loop")
+                rtn = super().process_request_loop()
+                debug("done")
+                if isinstance(rtn, Exception):
+                    if isinstance(rtn, self.TopLevelLoop):
+                        debug(rtn)
+                        self.reset_client()
+                        continue
+                    elif isinstance(rtn, SocketConnectionBrokenError):
+                        debug(rtn)
+                        self.reset_client()
+                        continue
+                    else:
+                        debug("Unexpected exception", rtn)
+                        raise rtn
 
+            except self.TopLevelLoop as ex:
+                debug("Reason why?", ex)
+                continue
+            except SocketConnectionBrokenError as ex:
+                self.reset_client()
+                continue
             except ForceQuit as ex:
                 if self._quit:
-                    print(ex)
+                    debug(ex)
                 else:
                     raise ex
             except Exception as ex:
-                print(ex)
+                debug(ex)
+        self._manager.finished(self)
 
 
 class ServerHandler(WorkerDispacher):
@@ -409,7 +562,7 @@ class ServerHandler(WorkerDispacher):
         pass
 
     def interpret(self, msg):
-        print("interpreting:", msg)
+        debug("interpreting:", msg)
         return "OK on interpreting {}".format(msg)
 
 

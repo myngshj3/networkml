@@ -7,7 +7,7 @@ import sys
 import traceback
 
 # import our modules
-from error import NetworkError
+from networkml.error import NetworkError
 
 
 class EnSpecLexerError(NetworkError):
