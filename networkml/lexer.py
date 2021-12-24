@@ -795,25 +795,49 @@ class NetworkParser:
         """
         p[0] = NetworkMethodCaller(self.owner, p[1], p[2])
 
-    # def p_number(self, p):
-    #     """
-    #     number : natural_number
-    #     """
-    #     p[0] = p[1]
+    def p_plus(self, p):
+        """
+        plus : PLUS
+        """
+        p[0] = p[1]
+
+    def p_minus(self, p):
+        """
+        minus : HIPHON
+        """
+        p[0] = p[1]
+
+    def p_multiply(self, p):
+        """
+        multiply : MULTIPLY
+        """
+        p[0] = p[1]
+
+    def p_divide(self, p):
+        """
+        divide : DIVIDE
+        """
+        p[0] = p[1]
+
+    def p_mod(self, p):
+        """
+        mod : MOD
+        """
+        p[0] = p[1]
 
     def p_arith_oper(self, p):
         """
         arith_oper : LPAR        arith_oper     LPAR
-        arith_oper : arith_lopr  PLUS     arith_ropr
-        arith_oper : arith_lopr  MINUS    arith_ropr
-        arith_oper : arith_lopr  MULTIPLY arith_ropr
-        arith_oper : arith_lopr  DIVIDE   arith_ropr
-        arith_oper : arith_lopr  MOD      arith_ropr
-        arith_oper : arith_oper  PLUS     arith_ropr
-        arith_oper : arith_oper  MINUS    arith_ropr
-        arith_oper : arith_oper  MULTIPLY arith_ropr
-        arith_oper : arith_oper  DIVIDE   arith_ropr
-        arith_oper : arith_oper  MOD      arith_ropr
+        arith_oper : arith_lopr  plus     arith_ropr
+        arith_oper : arith_lopr  minus    arith_ropr
+        arith_oper : arith_lopr  multiply arith_ropr
+        arith_oper : arith_lopr  divide   arith_ropr
+        arith_oper : arith_lopr  mod      arith_ropr
+        arith_oper : arith_oper  plus     arith_ropr
+        arith_oper : arith_oper  minus    arith_ropr
+        arith_oper : arith_oper  multiply arith_ropr
+        arith_oper : arith_oper  divide   arith_ropr
+        arith_oper : arith_oper  mod      arith_ropr
         """
         if p[1] == "(" and p[3] == ")":
             ev = p[2]

@@ -1114,16 +1114,17 @@ class NetworkMethod(NetworkCallable):
     def clazz(self, clazz):
         self._clazz = clazz
 
-    @property
-    def document(self):
-        return self._document
+    #@property
+    #def document(self):
+    #    return self._document
 
     @property
     def callable(self):
-        if self.document is None:
-            return None
-        else:
-            return self.document.callable
+        return True
+        # if self.document is None:
+        #     return None
+        # else:
+        #     return self.document.callable
 
     @property
     def callees(self):
@@ -1137,19 +1138,19 @@ class NetworkMethod(NetworkCallable):
         for c in self.callees:
             rtn = c(caller)
             if isinstance(rtn, NetworkError):
-                debug("Error Captured.")
-                debug(rtn)
-                debug("resumed")
+                self.log.debug("Error Captured.")
+                self.log.debug(rtn)
+                self.log.debug("resumed")
                 continue
             elif isinstance(rtn, NetworkReturnValue):
-                debug("Special dealing with:")
-                debug(rtn)
+                self.log.debug("Special dealing with:")
+                self.log.debug(rtn)
                 continue
             if caller.break_point is not None:
-                debug("caller.break_point:", caller.break_point)
+                self.log.debug("caller.break_point: {0}", caller.break_point)
                 if isinstance(rtn, NetworkReturnValue):
-                    debug("Exception occurred, but safely resumed.")
-                    debug(rtn)
+                    self.log.debug("Exception occurred, but safely resumed.")
+                    self.log.debug(rtn)
                     return rtn.reasons
                 elif isinstance(rtn, GenericValueHolder):
                     return rtn.value
@@ -1167,7 +1168,7 @@ class NetworkMethod(NetworkCallable):
         # FIXME argument adequateness varifiable here
         # new_args = []
         if len(args) < len(self.args):
-            raise NetworkError("Method {} needs t least {} args, but {} given.".format(self, len(self.args), len(args)))
+            raise NetworkError("Method {} needs at least {} args, but {} given.".format(self, len(self.args), len(args)))
         args = super().args_impl(caller, args[:len(self.args)])
         for a, x in zip(self.args, args):
             caller.accessor.set(caller, a, x)
@@ -1178,13 +1179,13 @@ class NetworkMethod(NetworkCallable):
         if is_callable is not None and not is_callable:
             raise NetworkError("{}.{} is not in callable state.".format(self.clazz, self.signature))
         if is_callable is None:
-            debug("Cannot analyze argumenet for {}.{}() ".format(self.owner, self.signature))
+            self.log.debug("Cannot analyze argumenet for {}.{}() ".format(self.owner, self.signature))
         if self.safe_call:
             try:
                 return self.actual_call_impl(caller, args)
             except Exception as ex:
-                debug("Internal Error occurred, but safely resumed.")
-                debug(ex)
+                self.log.debug("Internal Error occurred, but safely resumed.")
+                self.log.debug(ex)
                 return self.actual_call_impl(caller, args)
         else:
             return self.actual_call_impl(caller, args)
@@ -1473,7 +1474,7 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
 
     def has_private_attribute(self, caller, name):
         # FIXME well-consider implementation of secure access.
-        print("***** WARNING!!! HAS_PRIVATE_ATTRIBUTE IS DEPRECATED.")
+        self.log.debug("***** WARNING!!! HAS_PRIVATE_ATTRIBUTE IS DEPRECATED.")
         att = self._get_accessible_attributes([self.PUBLIC], [name])
         return len(att) != 0
 
@@ -1491,7 +1492,7 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
     # local variable
     def declare_var(self, var, globally=False):
         # FIXME this method is deprecated. Use push_stack instead.
-        print("***** WARNING!!! DECLARE_VAR IS DEPRECATED.")
+        self.log.debug("***** WARNING!!! DECLARE_VAR IS DEPRECATED.")
         if globally:
             depth = 0
         else:
@@ -1515,7 +1516,7 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
     # local method
     def declare_method(self, method, globally=False):
         # FIXME this method is deprecated. Use register_method instead.
-        print("***** WARNING!!! DECLARE_METHOD IS DEPRECATED.")
+        self.log.debug("***** WARNING!!! DECLARE_METHOD IS DEPRECATED.")
         if globally:
             depth = 0
         else:
@@ -1564,15 +1565,15 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
     def get_callable(self, caller, sig):
         # FIXME well-consider access security, since this inspects private attributes.
         #if sig == "clazz":
-        print("*** CALLER", type(caller), caller)
-        print("*** Searching GET_METHOD")
+        self.log.debug("*** CALLER {0} {1}", type(caller), caller)
+        self.log.debug("*** Searching GET_METHOD")
         callee = self.get_method(caller, sig)
         if callee is not None:
             return callee
         # find callable attribute
         #if sig == "clazz":
-        print("*** CALLER", type(caller), caller)
-        print("*** Searching CALLABLE_ATTRIBUTE")
+        self.log.debug("*** CALLER {0} {1}", type(caller), caller)
+        self.log.debug("*** Searching CALLABLE_ATTRIBUTE")
         weakest_acc = self._get_accessibilities(caller)
         if self.STACK in weakest_acc:
             att = self._accessible_attributes([self.STACK], names=[sig], stack_criteria=(self.VARS, self.CLASSES))
@@ -1625,8 +1626,8 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
     def get_var(self, name, globally=True):
         # FIXME consider class hierarchy and security. currently, depends on self accessor method.
         # FIXME this method is deprecated.
-        print("***** WARNING!!! GET_VAR IS DEPRECATED.")
-        debug("This method is deprecated. use accessor.get() instead.")
+        self.log.debug("***** WARNING!!! GET_VAR IS DEPRECATED.")
+        self.log.debug("This method is deprecated. use accessor.get() instead.")
         if globally:
             depth = 0
         else:
@@ -1636,8 +1637,8 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
 
     def set_var(self, var, globally=False):
         # FIXME this method is deprecated.
-        print("***** WARNING!!! SET_VAR IS DEPRECATED.")
-        debug("This method is deprecated. use accessor.set() instead.")
+        self.log.debug("***** WARNING!!! SET_VAR IS DEPRECATED.")
+        self.log.debug("This method is deprecated. use accessor.set() instead.")
         if globally:
             depth = 0
         else:
@@ -1698,12 +1699,12 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
 
     def push_context(self):
         # FIXME this method is deprecated. Use push_stack instead.
-        print("***** WARNING!!! PUSH_CONTEXT IS DEPRECATED.")
+        self.log.debug("***** WARNING!!! PUSH_CONTEXT IS DEPRECATED.")
         return self.push_stack(self)
 
     def pop_context(self, context_id):
         # FIXME this method is deprecated. Use push_stack instead.
-        print("***** WARNING!!! POP_CONTEXT IS DEPRECATED.")
+        self.log.debug("***** WARNING!!! POP_CONTEXT IS DEPRECATED.")
         self.pop_stack(self, context_id)
 
     def get_accessible_attribute_map(self, caller, criteria=()):
@@ -2037,11 +2038,11 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
         return self.globally
 
     def push_stack(self, caller):
-        print("**** NetworkClassInstance doesn't support context stack operation.")
+        self.log.debug("**** NetworkClassInstance doesn't support context stack operation.")
         return self.deepest_stack_id(caller)
 
     def pop_stack(self, caller, stack_id=None):
-        print("**** NetworkClassInstance doesn't support context stack operation.")
+        self.log.debug("**** NetworkClassInstance doesn't support context stack operation.")
         pass
 
     def declare_var(self, var, globally=False):
@@ -2239,7 +2240,7 @@ class HierarchicalAccessor(NetworkComponent):
             if num_idx is not None and num_idx != "":
                 indices.append(int(num_idx))
             elif sym_idx is not None and sym_idx != "":
-                print("****** sym_idx:", type(sym_idx), sym_idx)
+                self.log.debug("****** sym_idx:", type(sym_idx), sym_idx)
                 sym_idx = caller.get_attribute(caller, sym_idx)
                 # sym_idx = caller.accessor.get(caller, sym_idx)
                 indices.append(sym_idx)
@@ -2522,9 +2523,9 @@ class NetworkMethodCaller(NetworkCallable):
             if not isinstance(holder, NetworkInstance):
                 raise NetworkError("Invalid method holder {}.".format(holder))
             actual_caller = holder
-        print("**** pre  {}.get_method({},{})".format(holder, caller, self._method_name))
+        self.log.debug("**** pre  {}.get_method({},{})".format(holder, caller, self._method_name))
         callee = holder.get_callable(caller, self.method_name)
-        print("done.")
+        self.log.debug("done.")
         if callee is None:
             raise NetworkNotImplementationError("Method {}.{} not found.".format(caller, self.method_name))
         return callee, actual_caller, actual_args
@@ -2741,7 +2742,7 @@ class ForeachStatement(NetworkSequentialStatements):
             return False
 
     def call_impl(self, caller, args, **kwargs):
-        print("*** call_impl with self={}, caller={}, args={}".format(self, caller, args))
+        self.log.debug("*** call_impl with self={}, caller={}, args={}".format(self, caller, args))
         rtn = None
         while self.fetch(caller):
             rtn = super().call_impl(caller, args)
@@ -2750,7 +2751,7 @@ class ForeachStatement(NetworkSequentialStatements):
         return rtn
 
     def args_impl(self, caller, args, **kwargs):
-        print("*** args_impl with self={}, caller={}, args={}".format(self, caller, args))
+        self.log.debug("*** args_impl with self={}, caller={}, args={}".format(self, caller, args))
         if not self.prepare(caller):
             rtn = NetworkReturnValue(caller, False, "fetching from {} failed.".format(self.fetchee))
             return rtn
@@ -3097,7 +3098,7 @@ class NetworkGenericWorld(NetworkClass):
 
     def get_bound_method(self, obj, args):
         # FIXME this method should not be called.
-        print("*** GET_BOUND_METHOD IS DEPRECATED. ***")
+        self.log.debug("*** GET_BOUND_METHOD IS DEPRECATED. ***")
         for m in inspect.getmembers(obj, inspect.ismethod):
             if m[0] == args:
                 return m[1]
@@ -3105,7 +3106,7 @@ class NetworkGenericWorld(NetworkClass):
 
     def get_bound_methods_info(self, obj, args):
         # FIXME this method should not be called.
-        print("*** GET_BOUND_METHOD IS DEPRECATED. ***")
+        self.log.debug("*** GET_BOUND_METHOD IS DEPRECATED. ***")
         I = []
         for m, _ in inspect.getmembers(obj, inspect.ismethod):
             # if m in args:
@@ -3263,7 +3264,7 @@ class MethodArmer(NetworkInstance):
         elif "script" in method_config.keys():
             interpreter = instance.get_method(instance, "interpret")
             if interpreter is None:
-                print("*** INSTANCE '{}' HAS NO INTERPRETER. SCRIPT CANNOT READ.".format(instance))
+                self.log.debug("*** INSTANCE '{}' HAS NO INTERPRETER. SCRIPT CANNOT READ.".format(instance))
             else:
                 script = method_config["script"]
                 m = interpreter(self, [script])
@@ -3272,12 +3273,12 @@ class MethodArmer(NetworkInstance):
                 script = f.read()
             interpreter = instance.get_method(instance, "interpret")
             if interpreter is None:
-                print("*** INSTANCE '{}' HAS NO INTERPRETER. SCRIPT CANNOT READ.".format(instance))
+                self.log.debug("*** INSTANCE '{}' HAS NO INTERPRETER. SCRIPT CANNOT READ.".format(instance))
             else:
                 m = interpreter(self, [script])
         else:
             m = None
-            debug("Invalid configuration description for method {}".format(sig))
+            self.log.debug("Invalid configuration description for method {}".format(sig))
         if m is not None:
             instance.register_method(instance, sig, m, depth=0, overwrite=None)
 
@@ -3290,7 +3291,7 @@ class MethodArmer(NetworkInstance):
     def _arm_default_interpreter(self, instance, generator, manager):
         interpreter = IM.get_interpreter(instance, generator, manager)
         if interpreter is None:
-            print("*** INSTANCE '{}' HAS NO INTERPRETER. FOR THIS, SCRIPT CANNOT BE READ PRESENTLY.".format(instance))
+            self.log.debug("*** INSTANCE '{}' HAS NO INTERPRETER. FOR THIS, SCRIPT CANNOT BE READ PRESENTLY.".format(instance))
         else:
             instance.register_method(instance, interpreter.signature, interpreter)
 
