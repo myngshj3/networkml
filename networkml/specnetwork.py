@@ -74,7 +74,7 @@ class SpecValidator(GenericComponent, GenericValidator):
         self._exception_policy = policy
 
     def reset_evaluation_policy(self):
-        self._validation_policy = GenericValidatorParam.VALIDATE_NOTHING
+        self._validation_policy = GenericValidatorParam.VALIDATE_AS_VARABLE
 
     def validate(self, evaluatee):
         if isinstance(evaluatee, NetworkSymbol):

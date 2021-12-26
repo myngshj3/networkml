@@ -64,6 +64,11 @@ class MultiArityEvaluatee(GenericComponent, GenericEvaluatee):
             return self._evaluatees[n]
         return self.validator.validate(self._evaluatees[n])
 
+    def set_nth(self, n, expr):
+        evaluatees = list(self._evaluatees)
+        evaluatees[n] = expr
+        self._evaluatees = tuple(evaluatees)
+
     def evaluate(self, caller=None):
         rtn = []
         if caller is None:
@@ -71,7 +76,9 @@ class MultiArityEvaluatee(GenericComponent, GenericEvaluatee):
         else:
             validator = caller.validator
         for i in range(self.arity):
-            if validator is None or not self.get_symbolic(i):
+            if validator is None:
+                rtn.append(self._evaluatees[i])
+            elif not self.get_symbolic(i):
                 rtn.append(self._evaluatees[i])
             else:
                 if isinstance(self._evaluatees[i], GenericEvaluatee):
@@ -108,6 +115,9 @@ class UnaryEvaluatee(MultiArityEvaluatee, GenericUnaryEvaluatee):
         super().__init__(owner, sym, [expr], repr_with_parent=repr_with_parent)
         super().set_symbolic(0, as_symbol)
 
+    def set_expr(self, expr):
+        super().set_nth(0, expr)
+
     @property
     def value(self):
         return super().nth(0)
@@ -126,12 +136,16 @@ class UnaryEvaluatee(MultiArityEvaluatee, GenericUnaryEvaluatee):
         if validator is None:
             return self._evaluatees[0]
         if isinstance(self._evaluatees[0], GenericEvaluatee):
-            if validator is None:
-                expr = self._evaluatees[0]
-            else:
-                expr = validator.validate(self._evaluatees[0])
+            expr = validator.validate(self._evaluatees[0])
+        # elif isinstance(self._evaluatees[0], NetworkSymbol):
+        #     expr = validator.validate(self._evaluatees[0])
         else:
-            expr = self.value
+            if self.get_symbolic(0):
+                expr = validator.validate(self._evaluatees[0])
+                # expr = self.owner.accessor.get(self.owner, self._evaluatees[0])
+            else:
+                expr = self.value
+        # elif type(self._evaluatees[0]) is str or type(self._evaluatees[0]) is int or type(self._evaluatees[0]) is float:
         return expr
 
     def __repr__(self):
@@ -180,56 +194,23 @@ class BinaryEvaluatee(MultiArityEvaluatee, GenericBinaryEvaluatee):
     @property
     def l(self):
         return super().nth(0)
-        # if not self.l_symbol:
-        #     return self._evaluatees[0]
-        # else:
-        #     if self.validator is None:
-        #         l = self._evaluatees[0]
-        #     else:
-        #         l = self.validator.validate(self._evaluatees[0])
-        #     if type(l) is str:
-        #         l = "\"{}\"".format(l)
-        #     return l
+
+    def set_l(self, l):
+        evaluatees = list(self._evaluatees)
+        evaluatees[0] = l
+        self._evaluatees = tuple(evaluatees)
 
     @property
     def r(self):
         return super().nth(1)
-        # if not self.r_symbol:
-        #     return self._evaluatees[1]
-        # else:
-        #     if self.validator is None:
-        #         r = self._evaluatees[1]
-        #     else:
-        #         r = self.validator.validate(self._evaluatees[1])
-        #     if type(r) is str:
-        #         r = "\"{}\"".format(r)
-        #     return r
+
+    def set_r(self, r):
+        evaluatees = list(self._evaluatees)
+        evaluatees[1] = r
+        self._evaluatees = tuple(evaluatees)
 
     def evaluate(self, caller=None):
         return super().evaluate(caller)
-        # if caller is None:
-        #     validator = self.validator
-        # else:
-        #     validator = caller.validator
-        # if validator is None:
-        #     l = self.l
-        #     r = self.r
-        # else:
-        #     if self.l_symbol:
-        #         if isinstance(self._evaluatees[0], GenericEvaluatee):
-        #             l = self._evaluatees[0].evaluate(caller)
-        #         else:
-        #             l = validator.validate(self._evaluatees[0])
-        #     else:
-        #         l = self._evaluatees[0]
-        #     if self.r_symbol:
-        #         if isinstance(self._evaluatees[1], GenericEvaluatee):
-        #             r = self._evaluatees[1].evaluate(caller)
-        #         else:
-        #             r = validator.validate(self._evaluatees[1])
-        #     else:
-        #         r = self._evaluatees[1]
-        # return l, r
 
     def __repr__(self):
         if self._repr_with_parent:

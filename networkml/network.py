@@ -20,7 +20,8 @@ from networkml.generic import debug, is_debug_mode, is_traceback
 import networkml.genericutils as GU
 from networkml.validator import GenericEvaluatee, BinaryEvaluatee, UnaryEvaluatee, GenericValidatorParam, TrueEvaluatee
 import networkml.interpretermanager as IM
-
+from networkml import config
+import log4p
 
 _armer = None
 
@@ -37,11 +38,15 @@ def set_armer(armer):
 
 class NetworkComponent(GenericComponent):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, owner, **kwargs):
         super().__init__(owner)
 
 
 class NetworkReturnValue(GenericValueHolder):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, value, success=True, reasons=None, cancel=False):
         self._value = value
@@ -83,6 +88,9 @@ class NetworkReturnValue(GenericValueHolder):
 
 
 class DefaultSorter:
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, sortee):
         super().__init__()
         self._sortee = sortee
@@ -116,6 +124,9 @@ class DefaultSorter:
 
 
 class Literal:
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, value):
         super().__init__()
         self._value = value
@@ -129,6 +140,9 @@ class Literal:
 
 
 class Interval:
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, start: int, end=None):
         if end is None:
             self._start = start
@@ -183,6 +197,9 @@ class Interval:
 
 
 class Numberset:
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, *numbers):
         self._infinite = False
         self._intervals = []
@@ -303,6 +320,9 @@ class Numberset:
 
 
 class NumbersetOperator:
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self):
         pass
 
@@ -327,6 +347,8 @@ class NumbersetOperator:
 
 
 class CommandOption:
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, name: str, value=None, has_assignee=False, symbolic_assignee=False):
         self._name = name
@@ -381,6 +403,9 @@ class CommandOption:
 
 
 class SimpleReach:
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, forward: bool, edge_specs: GenericEvaluatee, node_specs: GenericEvaluatee):
         super().__init__()
         self._forward = forward
@@ -413,6 +438,9 @@ class SimpleReach:
 
 
 class ReachNetwork:
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, forward: bool, numbers: Numberset, reach: SimpleReach):
         self._forward = forward
         self._numbers = numbers
@@ -438,6 +466,9 @@ class ReachNetwork:
 
 
 class ConstructiveReachNetwork:
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, quantifier: Numberset, l, r=None, atomic: bool = False):
         self._quantifier = quantifier
         self._reaches = [l, r]
@@ -511,6 +542,9 @@ class ConstructiveReachNetwork:
 
 
 class ReachNetworkConstructor:
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self):
         pass
 
@@ -529,6 +563,8 @@ class ReachNetworkConstructor:
 
 
 class ReachabilitySpecification(GenericComponent):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     # Constants
     SRC_SPEC = "src-spec"
@@ -639,6 +675,8 @@ class ReachabilitySpecification(GenericComponent):
 
 class NetworkResolver(NetworkComponent):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, owner):
         super().__init__(owner)
 
@@ -647,6 +685,8 @@ class NetworkResolver(NetworkComponent):
 
 
 class NetworkArithmeticResolver(NetworkResolver):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     ATOMIC_RESOLVER = [(int, lambda x: x),
                        (bool, lambda x: x),
@@ -675,6 +715,8 @@ class NetworkArithmeticResolver(NetworkResolver):
 
 class NetworkResolverManager(NetworkResolver):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     RESOLVERS = []
 
     def __init__(self, owner):
@@ -690,6 +732,8 @@ class NetworkResolverManager(NetworkResolver):
 
 
 class NetworkSerializer:
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     @property
     def opened(self):
@@ -709,6 +753,8 @@ class NetworkSerializer:
 
 
 class NetworkTextSerializer(NetworkSerializer):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, filename):
         self._filename = filename
@@ -804,6 +850,8 @@ class NetworkTextSerializer(NetworkSerializer):
 # FIXME well-consider adequate interface for managing and representing document.
 class NetworkDocument:
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, obj, *args, **kwargs):
         self._obj = obj
 
@@ -816,6 +864,8 @@ class NetworkDocument:
 #       document management feature is one of important features in this framework.
 class NetworkDocumentable:
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     # FIXME doucment representation is not fixed.
     @property
     def document(self):
@@ -823,6 +873,8 @@ class NetworkDocumentable:
 
 
 class NetworkBaseCallable(NetworkComponent, GenericCallable):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     Lasted = 0
     ControlBroken = 1
@@ -877,7 +929,7 @@ class NetworkBaseCallable(NetworkComponent, GenericCallable):
             report_break_point = kwargs[self.REPORT_BREAK_POINT]
         stack_id = None
         st = caller.deepest_stack_id(caller)
-        # print("**** PRE  STACK[{}] VARS:{}".format(st, caller.get_stack(caller, st)[caller.VARS]))
+        self.log.debug("**** PRE  STACK[{}] VARS:{}".format(st, caller.get_stack(caller, st)[caller.VARS]))
         if not self.cancel_stacking and not isinstance(caller, NetworkClassInstance):
             stack_id = caller.push_stack(caller)
         try:
@@ -888,19 +940,20 @@ class NetworkBaseCallable(NetworkComponent, GenericCallable):
             #     print("args {} swapped to {}".format("(..{})".format(len(args)), "(..{})".format(len(actual_args))))
             # print("Method {}({}) running...".format(callee, (actual_caller, actual_args)))
             ret = callee(actual_caller, actual_args)
+            self.log.debug("{}({})".format(callee, actual_args))
             # print("done.")
             return ret
         except Exception as ex:
             if is_traceback():
-                debug("Tracebacking...")
-                traceback.format_exc()
+                self.log.debug("Tracebacking...")
+                self.log.debug(traceback.format_exc())
             raise NetworkError("{}{}({}, {}) call failed.".format(type(self), self, caller, args), ex)
         finally:
             break_info = caller.break_point
             if not self.cancel_stacking and not isinstance(caller, NetworkClassInstance):
                 caller.pop_stack(caller, stack_id)
             st = caller.deepest_stack_id(caller)
-            # print("**** POST STACK[{}] VARS:{}".format(st, caller.get_stack(caller, st)[caller.VARS]))
+            self.log.debug("**** POST STACK[{}] VARS:{}".format(st, caller.get_stack(caller, st)[caller.VARS]))
             if report_break_point:
                 caller.set_break_point(caller, break_info)
 
@@ -910,6 +963,8 @@ class NetworkBaseCallable(NetworkComponent, GenericCallable):
 
 
 class NetworkCallable(NetworkBaseCallable, GenericCallable):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, owner, args=(), closer=False, cancel_stacking=False, safe_call=False, **kwargs):
         super().__init__(owner, args=args, close=closer, cancel_stacking=cancel_stacking, safe_call=safe_call)
@@ -943,6 +998,8 @@ class NetworkCallable(NetworkBaseCallable, GenericCallable):
 
 
 class NetworkInvoker:
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def get_method(self, caller, m):
         raise NetworkNotImplementationError("Not implemented")
@@ -1042,6 +1099,8 @@ class NetworkInvoker:
 
 class NetworkProperty(NetworkCallable):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, owner, name, writee=False, get_stmts=(), set_stmts=()):
         super().__init__(owner)
         self._name = name
@@ -1062,6 +1121,8 @@ class NetworkProperty(NetworkCallable):
 
 
 class NetworkMethod(NetworkCallable):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     class BreakPointState(Enum):
 
@@ -1147,7 +1208,7 @@ class NetworkMethod(NetworkCallable):
                 self.log.debug(rtn)
                 continue
             if caller.break_point is not None:
-                self.log.debug("caller.break_point: {0}", caller.break_point)
+                self.log.debug("caller.break_point: {0}".format(caller.break_point))
                 if isinstance(rtn, NetworkReturnValue):
                     self.log.debug("Exception occurred, but safely resumed.")
                     self.log.debug(rtn)
@@ -1231,6 +1292,8 @@ class NetworkMethod(NetworkCallable):
 
 
 class NetworkInstance(NetworkComponent, NetworkDocumentable):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     PRIVATE = "private"
     PUBLIC = "public"
@@ -1565,15 +1628,15 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
     def get_callable(self, caller, sig):
         # FIXME well-consider access security, since this inspects private attributes.
         #if sig == "clazz":
-        self.log.debug("*** CALLER {0} {1}", type(caller), caller)
-        self.log.debug("*** Searching GET_METHOD")
+        # self.log.debug("*** CALLER {0} {1}".format(type(caller), caller))
+        # self.log.debug("*** Searching GET_METHOD")
         callee = self.get_method(caller, sig)
         if callee is not None:
             return callee
         # find callable attribute
         #if sig == "clazz":
-        self.log.debug("*** CALLER {0} {1}", type(caller), caller)
-        self.log.debug("*** Searching CALLABLE_ATTRIBUTE")
+        # self.log.debug("*** CALLER {0} {1}".format(type(caller), caller))
+        # self.log.debug("*** Searching CALLABLE_ATTRIBUTE")
         weakest_acc = self._get_accessibilities(caller)
         if self.STACK in weakest_acc:
             att = self._accessible_attributes([self.STACK], names=[sig], stack_criteria=(self.VARS, self.CLASSES))
@@ -1945,6 +2008,8 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
 
 class NetworkSymbol(UnaryEvaluatee):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, owner, symbol):
         super().__init__(owner, symbol, symbol, as_symbol=True)
         self._symbol = symbol
@@ -1964,6 +2029,8 @@ class NetworkSymbol(UnaryEvaluatee):
 
 
 class NetworkClassInstance(NetworkInstance, NetworkCallable):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, generator, signature, owner, super_class=None, embedded=(), *args, **kwargs):
         super().__init__(generator, signature, owner, embedded=embedded, args=args)
@@ -2098,6 +2165,8 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
 
 class NetworkClass(NetworkClassInstance):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, owner, signature, super_class=None, embedded=(), globally=False):
         super().__init__(owner, signature, owner, super_class=super_class, embedded=embedded)
         self._globally = globally
@@ -2139,6 +2208,8 @@ class NetworkClass(NetworkClassInstance):
 
 class NetworkWritee(NetworkComponent):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, owner):
         super().__init__(owner)
 
@@ -2147,6 +2218,9 @@ class NetworkWritee(NetworkComponent):
 
 
 class NetworkVariable(NetworkWritee, GenericValueHolder):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, owner, name, globally=False):
         super().__init__(owner)
         self._name = name
@@ -2183,6 +2257,8 @@ class NetworkVariable(NetworkWritee, GenericValueHolder):
 
 class SimpleVariable(NetworkVariable):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, owner, name, value, globally=False):
         super().__init__(owner, name, globally)
         self._value = value
@@ -2204,11 +2280,15 @@ class SimpleVariable(NetworkVariable):
 
 class NetworkNothing(NetworkError):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, args):
         super().__init__(args)
 
 
 class HierarchicalAccessor(NetworkComponent):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, owner=None):
         super().__init__(owner)
@@ -2229,7 +2309,7 @@ class HierarchicalAccessor(NetworkComponent):
         last_name = m.groupdict()['symbol']
         indices_segment = last_segment[m.span()[1]:]
         indices = []
-        idxpat = r"\[((?P<number>\d+)|(?P<literal>\"[^\"]+\")|(?P<symbol>[a-zA-Z_]+([a-zAZ0-9_]*[a-zAZ0-9]+)*))\]"
+        idxpat = r"\[((?P<number>\d+)|(?P<literal>(\"[^\"]+\"|'[^']+'))|(?P<symbol>[a-zA-Z_]+([a-zAZ0-9_]*[a-zAZ0-9]+)*))\]"
         while True:
             m = re.match(idxpat, indices_segment)
             if m is None:
@@ -2338,7 +2418,7 @@ class HierarchicalAccessor(NetworkComponent):
                 raise NetworkNothing("Couldn't access to {}.{} to get anyway.".format(obj, symbol))
         for j, i in enumerate(indices):
             if isinstance(i, str):
-                if i[0] == "\"" and i[len(i) - 1] == "\"":
+                if (i[0] == "\"" and i[len(i) - 1] == "\"") or (i[0] == "'" and i[len(i) - 1] == "'"):
                     i = i[1:len(i) - 1]
                     if not isinstance(obj, dict):
                         symbol = self.complex_name(names, indices[:j + 1])
@@ -2478,8 +2558,10 @@ class HierarchicalAccessor(NetworkComponent):
 
 class NetworkMethodCaller(NetworkCallable):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, owner, hierarchy_name, args=()):
-        super().__init__(owner, args=args, cancel_stacking=True)
+        super().__init__(owner, args=args, cancel_stacking=False)
         name = hierarchy_name.symbol
         self._hierarchical_name = name
         names = name.split(".")
@@ -2523,9 +2605,9 @@ class NetworkMethodCaller(NetworkCallable):
             if not isinstance(holder, NetworkInstance):
                 raise NetworkError("Invalid method holder {}.".format(holder))
             actual_caller = holder
-        self.log.debug("**** pre  {}.get_method({},{})".format(holder, caller, self._method_name))
+        # self.log.debug("**** pre  {}.get_method({},{})".format(holder, caller, self._method_name))
         callee = holder.get_callable(caller, self.method_name)
-        self.log.debug("done.")
+        # self.log.debug("done.")
         if callee is None:
             raise NetworkNotImplementationError("Method {}.{} not found.".format(caller, self.method_name))
         return callee, actual_caller, actual_args
@@ -2557,6 +2639,8 @@ class NetworkMethodCaller(NetworkCallable):
 
 class NetworkSubstituter(NetworkCallable):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, owner, var, callee, globally=False):
         super().__init__(owner, args=tuple([callee]), cancel_stacking=True)
         self._var = var.symbol
@@ -2582,7 +2666,8 @@ class NetworkSubstituter(NetworkCallable):
         if self.globally:
             depth = 0
         else:
-            depth = None
+            depth = caller.deepest_stack_id(caller)
+        self.log.debug("##### {0} <<-- {1}".format(self.var, args[0]))
         caller.set_attribute(caller, self.var, args[0], depth=depth)
         # accessor.set(caller, self.var, args[0])
         # print("*** substituted", self.var, "of", caller, "<=", self.callee)
@@ -2597,6 +2682,8 @@ class NetworkSubstituter(NetworkCallable):
 
 
 class NetworkBreak(NetworkCallable):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     BREAK = "break"
 
@@ -2614,6 +2701,8 @@ class NetworkBreak(NetworkCallable):
 
 
 class NetworkReturn(NetworkCallable, GenericValueHolder):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     RETURN = "return"
 
@@ -2636,6 +2725,7 @@ class NetworkReturn(NetworkCallable, GenericValueHolder):
         else:
             a = self.callee
         caller.set_break_point(caller, self.RETURN)
+        self.log.debug("return {}".format(a))
         return a
 
     def __repr__(self):
@@ -2643,6 +2733,8 @@ class NetworkReturn(NetworkCallable, GenericValueHolder):
 
 
 class NetworkSequentialStatements(NetworkCallable):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, owner):
         super().__init__(owner)
@@ -2689,6 +2781,8 @@ class NetworkSequentialStatements(NetworkCallable):
 
 class StatementParam(Enum):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     STEP = "step"
     CONDITIONAL_ARGS = "conditional-args"
     CONDITION_TRUELY_EVALUATED = "condition-truely-evaluated"
@@ -2703,6 +2797,8 @@ class StatementParam(Enum):
 
 
 class ForeachStatement(NetworkSequentialStatements):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, owner, var, fetchee):
         super().__init__(owner)
@@ -2751,7 +2847,7 @@ class ForeachStatement(NetworkSequentialStatements):
         return rtn
 
     def args_impl(self, caller, args, **kwargs):
-        self.log.debug("*** args_impl with self={}, caller={}, args={}".format(self, caller, args))
+        # self.log.debug("*** args_impl with self={}, caller={}, args={}".format(self, caller, args))
         if not self.prepare(caller):
             rtn = NetworkReturnValue(caller, False, "fetching from {} failed.".format(self.fetchee))
             return rtn
@@ -2761,7 +2857,50 @@ class ForeachStatement(NetworkSequentialStatements):
         return "for {} {} {}".format(self.var, self.fetchee, self.statements)
 
 
+class ForallStatement(ForeachStatement):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
+    def __init__(self, owner, var, fetchee):
+        super().__init__(owner, var, fetchee)
+
+    def call_impl(self, caller, args, **kwargs):
+        self.log.debug("*** call_impl with self={}, caller={}, args={}".format(self, caller, args))
+        while self.fetch(caller):
+            stmt = self.statements[0]
+            rtn = stmt.evaluate(caller)
+            # rtn = super().call_impl(caller, args)
+            if not rtn:
+                return False
+        return True
+
+    def __repr__(self):
+        return "forall {} in {}: {}".format(self.var, self.fetchee, self.statements)
+
+
+class ExistsStatement(ForeachStatement):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
+    def __init__(self, owner, var, fetchee):
+        super().__init__(owner, var, fetchee)
+
+    def call_impl(self, caller, args, **kwargs):
+        self.log.debug("*** call_impl with self={}, caller={}, args={}".format(self, caller, args))
+        while self.fetch(caller):
+            stmt = self.statements[0]
+            rtn = stmt.evaluate(caller)
+            if rtn:
+                return True
+        return False
+
+    def __repr__(self):
+        return "exists {} in {}: {}".format(self.var, self.fetchee, self.statements)
+
+
 class WhileStatement(NetworkSequentialStatements):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, owner, cond):
         super().__init__(owner)
@@ -2785,6 +2924,8 @@ class WhileStatement(NetworkSequentialStatements):
 
 
 class IfElifElseStatement(NetworkSequentialStatements):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, owner):
         super().__init__(owner)
@@ -2839,6 +2980,8 @@ class IfElifElseStatement(NetworkSequentialStatements):
 
 class MethodAvator(NetworkMethod):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, method_owner, signature, callee_owner, callee_entity, extra_args, globally=True):
         super().__init__(method_owner, signature, args=None, globally=globally)
         self._callee_owner = callee_owner
@@ -2865,6 +3008,8 @@ class MethodAvator(NetworkMethod):
 
 
 class BoundMethodAvator(NetworkMethod):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, method_owner, signature, callee_owner, method_entity, globally=True):
         super().__init__(method_owner, signature, args=None, globally=globally)
@@ -2895,6 +3040,8 @@ class BoundMethodAvator(NetworkMethod):
 
 
 class WrappedAccessor(NetworkMethod):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, accessor_owner, signature, actual_owner, accessor, globally=True, extra_args=None, **kwargs):
         super().__init__(accessor_owner, signature, args=None, globally=globally)
@@ -2944,6 +3091,8 @@ class WrappedAccessor(NetworkMethod):
 
 class StrictWrappedAccessor(WrappedAccessor):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, accessor_owner, signature, actual_owner, accessor, args_validator=None, globally=True, extra_args=None, **kwargs):
         super().__init__(accessor_owner, signature, actual_owner=actual_owner, accessor=accessor,
                          globally=globally, extra_args=extra_args, kwargs=kwargs)
@@ -2978,6 +3127,8 @@ class StrictWrappedAccessor(WrappedAccessor):
 
 
 class ExtensibleWrappedAccessor(StrictWrappedAccessor):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, accessor_owner, signature, actual_owner, accessor, args_validator=None, globally=True,
                  extra_args=(), help_text="", preprocesses=(), postprocesses=(), **kwargs):
@@ -3035,6 +3186,8 @@ class ExtensibleWrappedAccessor(StrictWrappedAccessor):
 
 class MethodWrapper(NetworkMethod):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, method_owner, signature, default_caller, callee_entity, args):
         super().__init__(method_owner, signature, args, [])
         self._default_caller = default_caller
@@ -3050,6 +3203,8 @@ class MethodWrapper(NetworkMethod):
 
 
 class NetworkGenericWorld(NetworkClass):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, owner, signature, super_class, embedded=()):
         super().__init__(owner, signature, super_class, embedded=embedded)
@@ -3127,6 +3282,8 @@ class NetworkGenericWorld(NetworkClass):
 
 class NetworkMethodWrapper(NetworkMethod):
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, owner, swapped_context, signature, func, args):
         super().__init__(owner, signature, args, [])
         self._swapped_context = swapped_context
@@ -3149,6 +3306,8 @@ class NetworkMethodWrapper(NetworkMethod):
 
 class ResolverMediator:
 
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
+
     def __init__(self, mediator: NetworkInvoker):
         self._mediator = mediator
 
@@ -3158,6 +3317,8 @@ class ResolverMediator:
 
 
 class ToplevelInstance(NetworkInstance):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, signature):
         super().__init__(None, 0, None, None)
@@ -3180,6 +3341,8 @@ class ToplevelInstance(NetworkInstance):
 
 
 class NetworkSecurityPolicy(GenericDescription):
+
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, name, is_symbol=False):
         super().__init__(name, is_symbol)
@@ -3219,7 +3382,7 @@ class NetworkSecurityPolicy(GenericDescription):
 
 class MethodArmer(NetworkInstance):
 
-    log = None  # logger.logger
+    log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self):
         super().__init__(None, 0, None)
