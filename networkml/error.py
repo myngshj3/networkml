@@ -170,7 +170,6 @@ class NetworkParseError(NetworkError):
         print("Syntax error: pos={}, value='{}':{}".format(self.pos, self.value, self.type))
         if self._parser is None or self._parser.lexer is None:
             return
-        tag = "detail:"
         preerr = self.lexdata[:self.pos]
         i = len(preerr) - 1
         for i in sorted(range(len(preerr)), reverse=True):
@@ -193,7 +192,7 @@ class NetworkParseError(NetworkError):
         for _ in range(len(self.value)):
             e = "{}{}".format(e, "^")
         e = "{} <-- unexpected token:'{}':{}".format(e, self.value, self.type)
-        e = "{}\n{}{}\n{}".format(tag, preerr[:i], posterr, e)
+        e = "{}{}\n{}".format(preerr[:i], posterr, e)
         print(e)
         return e
 
