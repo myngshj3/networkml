@@ -1478,6 +1478,10 @@ class NetworkParser:
         result = self.parser.parse(text, lexer=self.lexer)
         return result
 
+    def cancel_parse(self):
+        pass
+
+
 
 def main():
     m = NetworkLexer()

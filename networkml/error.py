@@ -90,6 +90,12 @@ class NetworkMethodFailedError(NetworkMethodError):
         super().__init__(message, cause)
 
 
+class NetworkScriptInterruptionException(NetworkError):
+
+    def __init__(self, message=None):
+        super().__init__(message)
+
+
 class NetworkLexerError(NetworkError):
     def __init__(self, lexer, ex=None):
         super().__init__("Lexer error", ex)

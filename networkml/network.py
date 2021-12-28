@@ -14,6 +14,7 @@ import inspect
 from enum import Enum
 from networkml.error import NetworkError, NetworkMethodError, NetworkParseError, NetworkNotImplementationError
 from networkml.error import NetworkReferenceError
+from networkml.error import NetworkScriptInterruptionException
 from networkml.generic import GenericCallable, GenericComponent, GenericValueHolder, Comparator, REPattern
 from networkml.generic import GenericValidator, GenericDescription
 from networkml.generic import debug, is_debug_mode, is_traceback
@@ -920,6 +921,8 @@ class NetworkBaseCallable(NetworkComponent, GenericCallable):
         if len(args) == 0:
             raise NetworkNotImplementationError("{}.__call__() without argument.".format(type(self)))
         caller = args[0]
+        if not caller.running:
+            raise NetworkScriptInterruptionException("script interrupted")
         if len(args) == 1:
             args = ()
         else:
@@ -943,6 +946,8 @@ class NetworkBaseCallable(NetworkComponent, GenericCallable):
             self.log.debug("{}({})".format(callee, actual_args))
             # print("done.")
             return ret
+        except NetworkScriptInterruptionException as ex:
+            raise ex
         except Exception as ex:
             if is_traceback():
                 self.log.debug("Tracebacking...")
@@ -1357,7 +1362,7 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
         self._globally = False
         if "globally" in kwargs.keys():
             self._globally = kwargs["globally"]
-        #
+        self._running = False
         # implements methods
         # get_armer().arm_default_methods(self, self.generator, self.owner)
 
@@ -1754,6 +1759,13 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
     def pop_stack(self, caller, stack_id=None):
         # FIXME check accessibility.
         self._pop_stack(stack_id)
+
+    @property
+    def running(self) -> bool:
+        return self._running
+
+    def set_running(self, value: bool):
+        self._running = value
 
     @property
     def context(self):
