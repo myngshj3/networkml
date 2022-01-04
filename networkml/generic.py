@@ -264,6 +264,10 @@ class GenericEvaluatee(Generic):
     def evaluate(self, caller):
         return None
 
+    def __call__(self, *args, **kwargs):
+        caller = args[0]
+        return self.evaluate(caller)
+
 
 class GenericValidatorParam(Enum):
 

@@ -148,7 +148,7 @@ class NetworkLexer:
     t_NEGATIVE_FLOAT = r"\-[0-9]+\.[0-9]+"
     t_LITERAL = r"\"(\"\"|[^\"])*\""
     t_NULL = r"null"
-    t_OPTION = r"\-{1,2}[a-zA-Z]+([_]+[a-zA-Z0-9]+)*"
+    t_OPTION = r"\-\-[a-zA-Z]+([_]+[a-zA-Z0-9]+)*"
     t_DOUBLEPERIOD = r"\.\."
     t_AND = r"and"
     t_OR = r"or"
@@ -473,6 +473,7 @@ class NetworkParser:
         """
         subst : GLOBAL substitutee SUBST subst_callee
         subst :        substitutee SUBST subst_callee
+        subst :        substitutee SUBST arith_oper
         """
         if len(p) == 5:
             globally = True
@@ -827,6 +828,7 @@ class NetworkParser:
 
     def p_arith_oper(self, p):
         """
+        arith_oper : minus arith_ropr
         arith_oper : LPAR        arith_oper     LPAR
         arith_oper : arith_lopr  plus     arith_ropr
         arith_oper : arith_lopr  minus    arith_ropr
@@ -839,6 +841,9 @@ class NetworkParser:
         arith_oper : arith_oper  divide   arith_ropr
         arith_oper : arith_oper  mod      arith_ropr
         """
+        if len(p) == 3:
+            p[0] = ArithmeticSubtractalEvaluatee(self.owner, 0, p[2])
+            return
         if p[1] == "(" and p[3] == ")":
             ev = p[2]
         elif p[2] == "+":
@@ -900,6 +905,7 @@ class NetworkParser:
         arith_lopr : int
         arith_lopr : float
         arith_lopr : reference
+        arith_lopr : method_call
         """
         p[0] = p[1]
 
@@ -908,6 +914,7 @@ class NetworkParser:
         arith_ropr : nonnegative_int
         arith_ropr : nonnegative_float
         arith_ropr : reference
+        arith_ropr : method_call
         """
         p[0] = p[1]
 

@@ -917,6 +917,9 @@ class NetworkBaseCallable(NetworkComponent, GenericCallable):
     def safe_call(self):
         return self._safe_call
 
+    def evaluate(self, *args, **kwargs):
+        return self(*args, **kwargs)
+
     def __call__(self, *args, **kwargs):
         if len(args) == 0:
             raise NetworkNotImplementationError("{}.__call__() without argument.".format(type(self)))
@@ -2635,6 +2638,8 @@ class NetworkMethodCaller(NetworkCallable):
                 x = a(caller)
             elif isinstance(a, GenericValueHolder):
                 x = a.value
+            elif isinstance(a, GenericEvaluatee):
+                x = a.evaluate(caller)
             else:
                 x = a
             args_converted.append(x)

@@ -81,7 +81,10 @@ class MultiArityEvaluatee(GenericComponent, GenericEvaluatee):
             elif not self.get_symbolic(i):
                 rtn.append(self._evaluatees[i])
             else:
+                from networkml.network import NetworkCallable
                 if isinstance(self._evaluatees[i], GenericEvaluatee):
+                    rtn.append(self._evaluatees[i].evaluate(caller))
+                elif isinstance(self._evaluatees[i], NetworkCallable):
                     rtn.append(self._evaluatees[i].evaluate(caller))
                 else:
                     rtn.append(validator.validate(self._evaluatees[i]))
