@@ -13,7 +13,6 @@ from networkml.generic import GenericValueHolder
 from networkml.lexer import NetworkParser
 from networkml.generic import debug
 import networkml.genericutils as GU
-import networkml.admin
 import subprocess
 from subprocess import PIPE
 
@@ -29,20 +28,20 @@ class NetworkInterpreter(NetworkMethod):
         script = args[0]
         return self.interpret_impl(caller, script, self._parser)
 
-    def args_impl(self, caller, args, **kwargs):
-        if len(args) == 0:
-            return NetworkReturnValue(args, False, "Too few argument.")
-        new_args = []
-        if isinstance(args[0], GenericValueHolder):
-            new_args.append(args[0].value)
-        else:
-            new_args.append(args[0])
-        for i, a in enumerate(args[1:]):
-            if isinstance(a, CommandOption):
-                self._options.append(a)
-            else:
-                debug("args[{}] ignored.".format(i))
-        return new_args
+    # def args_impl(self, caller, args, **kwargs):
+    #     if len(args) == 0:
+    #         return NetworkReturnValue(args, False, "Too few argument.")
+    #     new_args = []
+    #     if isinstance(args[0], GenericValueHolder):
+    #         new_args.append(args[0].value)
+    #     else:
+    #         new_args.append(args[0])
+    #     for i, a in enumerate(args[1:]):
+    #         if isinstance(a, CommandOption):
+    #             self._options.append(a)
+    #         else:
+    #             debug("args[{}] ignored.".format(i))
+    #     return new_args
 
     def interpret_impl(self, caller, script, parser):
         safe = True
@@ -53,12 +52,15 @@ class NetworkInterpreter(NetworkMethod):
             try:
                 return self.actual_interpret(caller, script, parser)
             except NetworkLexerError as ex:
-                caller.print(ex.message)
-                caller.print(ex.detail())
+                caller.print(traceback.format_exc())
+                # caller.print(ex.message)
+                # caller.print(ex.detail())
             except NetworkParserError as ex:
+                caller.print(traceback.format_exc())
                 caller.print(ex.message)
                 caller.print(ex.detail())
             except NetworkError as ex:
+                print(ex, type(ex))
                 caller.print("Interpreter error:{}".format(script))
                 while ex is not None and isinstance(ex, NetworkError):
                     caller.print(ex.message)
@@ -71,14 +73,6 @@ class NetworkInterpreter(NetworkMethod):
             return self.actual_interpret(caller, script, parser)
 
     def actual_interpret(self, caller, script, parser):
-        m, g = GU.rematch(r"^\s*cmd:\s*", script)
-        if m is not None:
-            script = script[m.span()[1]:]
-            tokens = admin.parse_command(script)
-            proc = subprocess.run(tokens, shell=True, stdout=PIPE, stderr=PIPE)
-            data = proc.stdout
-            caller.print(data.decode("shift-jis"))
-            return
         result = parser.parse_script(script)
         rtn = None
         if type(result) is not list:

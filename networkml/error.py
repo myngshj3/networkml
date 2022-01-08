@@ -206,3 +206,15 @@ class NetworkParseError(NetworkError):
 class NetworkParserError(NetworkParseError):
     def __init__(self, parser):
         super().__init__(parser)
+
+
+class NetworkModelCheckError(NetworkError):
+
+    def __init__(self, stmt):
+        super().__init__('model check error')
+        self._stmt = stmt
+
+    @property
+    def stmt(self):
+        return self._stmt
+

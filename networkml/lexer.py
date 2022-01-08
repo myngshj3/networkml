@@ -212,8 +212,8 @@ class NetworkParser:
         if len(p) == 2:
             p[0] = [p[1]]
         elif len(p) == 3:
-            p[1].extend(p[2])
             p[0] = p[1]
+            p[0].extend(p[2])
 
     # def p_access(self, p):
     #     """
@@ -1464,7 +1464,7 @@ class NetworkParser:
 
     # if error occurred
     def p_error(self, p):
-        print('Syntax error: %d: %d: %r' % (p.lineno, p.lexpos, p.value))
+        #print('Syntax error: %d: %d: %r' % (p.lineno, p.lexpos, p.value))
         raise NetworkParserError(p)
 
     def __init__(self, owner):
