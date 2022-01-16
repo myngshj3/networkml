@@ -1342,7 +1342,7 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
         #
         # print setting
         self._print_func = lambda x: self._print_buf.append(x)
-        self._auto_flush = False
+        self._auto_flush = True
         self._print_buf = []
         #
         # FIXME deal with args
