@@ -100,7 +100,7 @@ class NetworkLexer:
     t_IF = r"if"
     t_ELIF = r"elif"
     t_ELSE = r"else"
-    t_REPATTERN = r"/[^/]+/"
+    t_REPATTERN = r"\|[^\|]+\|"
     t_PLUS = r"\+"
     t_MINUS = r"\-"
     t_MULTIPLY = r"\*"
@@ -687,20 +687,20 @@ class NetworkParser:
 
     def p_for_statement(self, p):
         """
-        for_statement : FOR symbol symbol single_execution
-        for_statement : FOR symbol symbol LBRACKET executions RBRACKET
+        for_statement : FOR symbol IN symbol single_execution
+        for_statement : FOR symbol IN symbol LBRACKET executions RBRACKET
         """
-        if len(p) == 5:
+        if len(p) == 6:
             fetch = p[2]
-            fetchee = p[3]
+            fetchee = p[4]
             stmt = ForeachStatement(self.owner, fetch, fetchee)
-            stmt.set_statements((p[4]))
+            stmt.set_statements([p[5]])
             p[0] = stmt
-        elif len(p) == 7:
+        elif len(p) == 8:
             fetch = p[2]
-            fetchee = p[3]
+            fetchee = p[4]
             stmt = ForeachStatement(self.owner, fetch, fetchee)
-            stmt.set_statements(p[5])
+            stmt.set_statements(p[6])
             p[0] = stmt
 
     def p_while_statement(self, p):
@@ -990,6 +990,7 @@ class NetworkParser:
         equality_spec_assignments : float                 EQUAL spec_symbolic_operand
         equality_spec_assignments : string                EQUAL spec_symbolic_operand
         equality_spec_assignments : bool                  EQUAL spec_symbolic_operand
+        equality_spec_assignments : spec_symbolic_operand EQUAL arith_oper
         """
         if type(p[1]) is NetworkSymbol:
             l_symbol = True
@@ -1009,6 +1010,7 @@ class NetworkParser:
         different_spec_assignments : spec_symbolic_operand DIFFERENT string
         different_spec_assignments : spec_symbolic_operand DIFFERENT bool
         different_spec_assignments : spec_symbolic_operand DIFFERENT spec_symbolic_operand
+        different_spec_assignments : spec_symbolic_operand DIFFERENT arith_oper
         """
         if type(p[1]) is NetworkSymbol:
             l_symbol = True
@@ -1026,6 +1028,7 @@ class NetworkParser:
         gt_spec_assignments : spec_symbolic_operand GREATER_THAN int
         gt_spec_assignments : spec_symbolic_operand GREATER_THAN float
         gt_spec_assignments : spec_symbolic_operand GREATER_THAN spec_symbolic_operand
+        gt_spec_assignments : spec_symbolic_operand GREATER_THAN arith_oper
         """
         if type(p[1]) is NetworkSymbol:
             l_symbol = True
@@ -1041,6 +1044,7 @@ class NetworkParser:
         ge_spec_assignments : spec_symbolic_operand GREATER_OR_EQUAL int
         ge_spec_assignments : spec_symbolic_operand GREATER_OR_EQUAL float
         ge_spec_assignments : spec_symbolic_operand GREATER_OR_EQUAL spec_symbolic_operand
+        ge_spec_assignments : spec_symbolic_operand GREATER_OR_EQUAL arith_oper
         """
         if type(p[1]) is NetworkSymbol:
             l_symbol = True
@@ -1056,6 +1060,7 @@ class NetworkParser:
         le_spec_assignments : spec_symbolic_operand LESS_OR_EQUAL int
         le_spec_assignments : spec_symbolic_operand LESS_OR_EQUAL float
         le_spec_assignments : spec_symbolic_operand LESS_OR_EQUAL spec_symbolic_operand
+        le_spec_assignments : spec_symbolic_operand LESS_OR_EQUAL arith_oper
         """
         if type(p[1]) is NetworkSymbol:
             l_symbol = True
@@ -1071,6 +1076,7 @@ class NetworkParser:
         lt_spec_assignments : spec_symbolic_operand LESS_THAN int
         lt_spec_assignments : spec_symbolic_operand LESS_THAN float
         lt_spec_assignments : spec_symbolic_operand LESS_THAN spec_symbolic_operand
+        lt_spec_assignments : spec_symbolic_operand LESS_THAN arith_oper
         """
         if type(p[1]) is NetworkSymbol:
             l_symbol = True
@@ -1190,15 +1196,21 @@ class NetworkParser:
         ambiguous_spec : string     EQUAL arith_lopr
         ambiguous_spec : bool       EQUAL reference
         ambiguous_spec : bool       EQUAL bool
+        ambiguous_spec : SYMBOL EQUAL     arith_oper
         ambiguous_spec : SYMBOL DIFFERENT arith_lopr
         ambiguous_spec : SYMBOL DIFFERENT string
         ambiguous_spec : SYMBOL DIFFERENT bool
+        ambiguous_spec : SYMBOL DIFFERENT arith_oper
         ambiguous_spec : SYMBOL MATCH     REPATTERN
         ambiguous_spec : SYMBOL UNMATCH   REPATTERN
         ambiguous_spec : SYMBOL GREATER_THAN arith_lopr
         ambiguous_spec : SYMBOL GREATER_OR_EQUAL arith_lopr
         ambiguous_spec : SYMBOL LESS_THAN arith_lopr
         ambiguous_spec : SYMBOL LESS_OR_EQUAL arith_lopr
+        ambiguous_spec : SYMBOL GREATER_THAN arith_oper
+        ambiguous_spec : SYMBOL GREATER_OR_EQUAL arith_oper
+        ambiguous_spec : SYMBOL LESS_THAN arith_oper
+        ambiguous_spec : SYMBOL LESS_OR_EQUAL arith_oper
         ambiguous_spec : NOT  ambiguous_spec
         ambiguous_spec : LPAR ambiguous_spec RPAR
         ambiguous_spec : ambiguous_spec AND ambiguous_spec

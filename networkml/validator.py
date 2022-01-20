@@ -308,7 +308,7 @@ class BooleanMatchee(BooleanBinaryEvaluatee):
     def matches(self, l, r):
         if len(r) < 2:
             return False
-        elif r[0] != "/" or r[len(r)-1] != "/":
+        elif r[0] != "|" or r[len(r)-1] != "|":
             return False
         r = r[1:len(r)-1]
         m = re.search(r, l)

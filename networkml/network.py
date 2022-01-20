@@ -2335,7 +2335,7 @@ class HierarchicalAccessor(NetworkComponent):
             if num_idx is not None and num_idx != "":
                 indices.append(int(num_idx))
             elif sym_idx is not None and sym_idx != "":
-                self.log.debug("****** sym_idx:", type(sym_idx), sym_idx)
+                self.log.debug("****** sym_idx: {} {}".format(type(sym_idx), sym_idx))
                 sym_idx = caller.get_attribute(caller, sym_idx)
                 # sym_idx = caller.accessor.get(caller, sym_idx)
                 indices.append(sym_idx)

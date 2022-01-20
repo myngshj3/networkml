@@ -87,7 +87,10 @@ class SpecValidator(GenericComponent, GenericValidator):
             else:
                 return None
         elif self._validation_policy == GenericValidatorParam.VALIDATE_AS_VARABLE:
-            var = self.owner.accessor.get(self.owner, evaluatee)
+            if isinstance(evaluatee, GenericEvaluatee):
+                var = evaluatee(self.owner)
+            else:
+                var = self.owner.accessor.get(self.owner, evaluatee)
             return var
         else:
             raise NetworkError("Unknown validation policy:{}".format(self._validation_policy))
