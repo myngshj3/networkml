@@ -2317,10 +2317,11 @@ class HierarchicalAccessor(NetworkComponent):
             name = name.symbol
         names = name.split(".")
         last_segment = names[len(names)-1]
-        sympat = r"\s*(?P<symbol>(\$|)[a-zA-Z_]+([a-zAZ0-9_\$]*[a-zAZ0-9]+)*)\s*"
+        #sympat = r"\s*(?P<symbol>(\$|)[a-zA-Z_]+([a-zAZ0-9_\$]*[a-zAZ0-9]+)*)\s*"
+        sympat = r"(?P<symbol>(\$|)[a-zA-Z_]+[a-zAZ0-9_]*(|[a-zA-Z_]+[a-zAZ0-9_]*|\[(\"[^\"]*\"|[0-9]+)\]))"
         m = re.match(sympat, last_segment)
         if m is None:
-            raise NetworkReferenceError("Invalid reference format.{}".format(last_segment))
+            raise NetworkReferenceError("Invalid reference format:{}".format(last_segment))
         last_name = m.groupdict()['symbol']
         indices_segment = last_segment[m.span()[1]:]
         indices = []
@@ -2513,8 +2514,8 @@ class HierarchicalAccessor(NetworkComponent):
                 symbol = self.complex_name(names, ())
                 raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
         if len(indices) != 0:
-            for j, i in enumerate(indices[:len(indices)-1]):
-                if isinstance(i, str):
+            for j, ix in enumerate(indices[:len(indices)-1]):
+                if isinstance(ix, str):
                     # if i[0] == "\"" and i[len(i) - 1] == "\"":
                     #     i = i[1:len(i) - 1]
                     #     if not isinstance(obj, dict):
@@ -2526,13 +2527,13 @@ class HierarchicalAccessor(NetworkComponent):
                     # if type(i) is int and (type(obj) is list or type(obj) is tuple):
                     #     obj = obj[i]
                     # elif type(i) is str and type(obj) is dict:
-                    if type(obj) is dict:
-                        obj = obj[i]
+                    if isinstance(obj, dict):
+                        obj = obj[ix]
                     else:
                         symbol = self.complex_name(names, indices[:j + 1])
                         raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
-                elif type(i) is int and (isinstance(obj, list) or isinstance(obj, tuple)):
-                    obj = obj[i]
+                elif type(ix) is int and (isinstance(obj, list) or isinstance(obj, tuple)):
+                    obj = obj[ix]
                 else:
                     symbol = self.complex_name(names, indices[:j + 1])
                     raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
@@ -2541,18 +2542,20 @@ class HierarchicalAccessor(NetworkComponent):
             return True
         i = last_something
         if isinstance(i, str):
-            # if last_something[0] == "\"" and i[len(i) - 1] == "\"":
-            #     i = i[1:len(i) - 1]
-            #     if not isinstance(obj, dict):
-            #         symbol = self.complex_name(names, indices)
-            #         raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
-            #     obj[i] = val
-            # else:
-            i = self.get(caller, i, types=(int, str))
+            if last_something[0] == "\"" and i[len(i) - 1] == "\"": # literal
+                i = i[1:len(i) - 1]
+                # if not isinstance(obj, dict):
+                #     symbol = self.complex_name(names, indices)
+                #     raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
+                # obj[i] = val
+            else:
+                i = self.get(caller, i, types=(int, str))
             # if type(i) is int and (type(obj) is list or type(obj) is tuple):
             #     obj[i] = val
             # elif type(i) is str and type(obj) is dict:
-            if type(obj) is dict:
+            if isinstance(i, str) and isinstance(obj, dict):
+                obj[i] = val
+            elif isinstance(i, int) and isinstance(obj, list):
                 obj[i] = val
             else:
                 symbol = self.complex_name(names, indices)
@@ -2685,7 +2688,8 @@ class NetworkSubstituter(NetworkCallable):
         else:
             depth = caller.deepest_stack_id(caller)
         self.log.debug("##### {0} <<-- {1}".format(self.var, args[0]))
-        caller.set_attribute(caller, self.var, args[0], depth=depth)
+        ret = caller.set_attribute(caller, self.var, args[0], depth=depth)
+        caller.accessor.set(caller, self.var, args[0])
         # accessor.set(caller, self.var, args[0])
         # print("*** substituted", self.var, "of", caller, "<=", self.callee)
 
