@@ -1372,6 +1372,17 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
     """
     Attribute accessors section.
     """
+    # only for debug use
+    def dump_attributes(self):
+        for i in range(len(self._attributes[self.STACK])):
+            self.print("stack[{}]".format(i))
+            for k in self._attributes[self.STACK][i].keys():
+                if k == "break_point":
+                    continue
+                self.print("  {}".format(k))
+                for f in self._attributes[self.STACK][i][k].keys():
+                    self.print("    {}".format(f))
+
     # Caution! This method is internal method. Never call from other class scope.
     def _accessible_attributes(self, args=(), names=(), stack_criteria=None):
         acc = []
@@ -1916,7 +1927,8 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
     def create_class(self, signature, owner, initializer_args=()):
         if signature in self.context["classes"].keys():
             raise NetworkError("Instance {} already has named class <{}>.".format(self, signature))
-        clazz = NetworkClassInstance(self, (signature, owner, initializer_args))  # local class doesn't has meta-class.
+        #clazz = NetworkClassInstance(self, (signature, owner, initializer_args))  # local class doesn't has meta-class.
+        clazz = NetworkClassInstance(self, signature, self, self.parent, embedded=(), *initializer_args)
         self.declare_class(clazz)
         return clazz
 
@@ -2099,7 +2111,7 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
             return 1
         return self._instance_ids[len(self._instance_ids)-1] + 1
 
-    def init_clazz(self, initializer, method_list=()):
+    def initialize_methods(self, initializer, method_list=()):
         initializer.set_owner(self)
         self._initializer = initializer
         for e in method_list:
@@ -2157,6 +2169,7 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
         # creates and initializes instance
         instance = NetworkInstance(self, _id, owner, embedded, args)
         initializer: NetworkMethod = self.get_initializer()
+        instance.set_running(True)
         instance.set_stack_enable(False)
         if initializer is not None:
             initializer(instance, args)
@@ -2172,7 +2185,8 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
     def call_impl(self, caller, args, **kwargs):
         self._last_instance += 1
         self._instance_ids.append(self._last_instance)
-        return self.create_instance(self._last_instance, caller, args)
+        ret = self.create_instance(self._last_instance, caller, args)
+        return ret
 
     def __repr__(self):
         return "{}".format(self.signature)
@@ -2318,14 +2332,15 @@ class HierarchicalAccessor(NetworkComponent):
         names = name.split(".")
         last_segment = names[len(names)-1]
         #sympat = r"\s*(?P<symbol>(\$|)[a-zA-Z_]+([a-zAZ0-9_\$]*[a-zAZ0-9]+)*)\s*"
-        sympat = r"(?P<symbol>(\$|)[a-zA-Z_]+[a-zAZ0-9_]*(|[a-zA-Z_]+[a-zAZ0-9_]*|\[(\"[^\"]*\"|[0-9]+)\]))"
+        #sympat = r"(?P<symbol>(\$|)[a-zA-Z_]+[a-zAZ0-9_\$]*(|[a-zA-Z_]+[a-zAZ0-9_]*|\[(\"[^\"]*\"|[0-9]+)\]))"
+        sympat = r"(?P<symbol>(\$|)[a-zA-Z_]+[a-zAZ0-9_\$]*)"
         m = re.match(sympat, last_segment)
         if m is None:
             raise NetworkReferenceError("Invalid reference format:{}".format(last_segment))
         last_name = m.groupdict()['symbol']
         indices_segment = last_segment[m.span()[1]:]
         indices = []
-        idxpat = r"\[((?P<number>\d+)|(?P<literal>(\"[^\"]+\"|'[^']+'))|(?P<symbol>[a-zA-Z_]+([a-zAZ0-9_]*[a-zAZ0-9]+)*))\]"
+        idxpat = r"^\s*\[\s*((?P<number>\d+)|(?P<literal>(\"[^\"]+\"|'[^']+'))|(?P<symbol>[a-zA-Z_]+([a-zAZ0-9_]*[a-zAZ0-9]+)*))\s*\]"
         while True:
             m = re.match(idxpat, indices_segment)
             if m is None:
@@ -2417,7 +2432,7 @@ class HierarchicalAccessor(NetworkComponent):
             if isinstance(obj, NetworkInstance):
                 if not obj.has_attribute(caller, n):
                     symbol = self.complex_name(names, ())
-                    raise NetworkNothing("Couldn't access to {}.{} to get due to {}:{}.".format(obj, symbol, type(n), n))
+                    raise NetworkNothing("Couldn't access to {}.{}. {}:{} not found.".format(obj, symbol, type(n), n))
                 obj = obj.get_attribute(obj, n)
             elif isinstance(obj, dict):
                 if n not in obj.keys():
@@ -2465,7 +2480,6 @@ class HierarchicalAccessor(NetworkComponent):
         return "{}{}".format(name, idx)
 
     def get(self, caller, hierarchical_name, types=None):
-        # print("<!--", self, "(", caller, ",", hierarchical_name, ",", types, ")")
         original_caller = caller
         first_name, middle_names, last_name, indices = self._separate_name(caller, hierarchical_name)
         rtn = self._get_named_value(caller, first_name, middle_names, last_name, indices)
@@ -2516,23 +2530,25 @@ class HierarchicalAccessor(NetworkComponent):
         if len(indices) != 0:
             for j, ix in enumerate(indices[:len(indices)-1]):
                 if isinstance(ix, str):
-                    # if i[0] == "\"" and i[len(i) - 1] == "\"":
-                    #     i = i[1:len(i) - 1]
+                    if ix[0] == "\"" and ix[len(ix) - 1] == "\"":
+                        ix = ix[1:len(ix) - 1]
                     #     if not isinstance(obj, dict):
                     #         symbol = self.complex_name(names, indices[:j + 1])
                     #         raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
                     #     obj = obj[i]
-                    # else:
-                    # i = self.get(caller, i, types=(int, str))
+                    else:
+                        ix = self.get(caller, ix, types=(int, str))
                     # if type(i) is int and (type(obj) is list or type(obj) is tuple):
                     #     obj = obj[i]
                     # elif type(i) is str and type(obj) is dict:
-                    if isinstance(obj, dict):
+                    if isinstance(ix, str) and isinstance(obj, dict):
+                        obj = obj[ix]
+                    elif isinstance(ix, int) and (isinstance(obj, list) or isinstance(obj, tuple)):
                         obj = obj[ix]
                     else:
                         symbol = self.complex_name(names, indices[:j + 1])
                         raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
-                elif type(ix) is int and (isinstance(obj, list) or isinstance(obj, tuple)):
+                elif isinstance(ix, int) and (isinstance(obj, list) or isinstance(obj, tuple)):
                     obj = obj[ix]
                 else:
                     symbol = self.complex_name(names, indices[:j + 1])
@@ -2622,7 +2638,7 @@ class NetworkMethodCaller(NetworkCallable):
             # print("***", type(holder), holder)
             if not isinstance(holder, NetworkInstance):
                 raise NetworkError("Invalid method holder {}.".format(holder))
-            actual_caller = holder
+            actual_caller = caller
         # self.log.debug("**** pre  {}.get_method({},{})".format(holder, caller, self._method_name))
         callee = holder.get_callable(caller, self.method_name)
         # self.log.debug("done.")
@@ -2687,8 +2703,8 @@ class NetworkSubstituter(NetworkCallable):
             depth = 0
         else:
             depth = caller.deepest_stack_id(caller)
-        self.log.debug("##### {0} <<-- {1}".format(self.var, args[0]))
-        ret = caller.set_attribute(caller, self.var, args[0], depth=depth)
+        self.log.debug("##### {0} <-- {1}".format(self.var, args[0]))
+        #ret = caller.set_attribute(caller, self.var, args[0], depth=depth)
         caller.accessor.set(caller, self.var, args[0])
         # accessor.set(caller, self.var, args[0])
         # print("*** substituted", self.var, "of", caller, "<=", self.callee)
@@ -2699,7 +2715,7 @@ class NetworkSubstituter(NetworkCallable):
         return super().args_impl(caller, self.args)
 
     def __repr__(self):
-        return "Substituter {} <<- {}".format(self.var, self.callee)
+        return "Substituter {} <- {}".format(self.var, self.callee)
 
 
 class NetworkBreak(NetworkCallable):

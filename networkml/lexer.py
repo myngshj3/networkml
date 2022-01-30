@@ -230,10 +230,10 @@ class NetworkParser:
         """
         if len(p) == 7:
             clazz = NetworkClassInstance(self.owner, p[2], self.owner, super_class=None)
-            clazz.init_clazz(p[4], p[5])
+            clazz.initialize_methods(p[4], p[5])
         elif len(p) == 10:
             clazz = NetworkClassInstance(self.owner, p[2], self.owner, super_class=p[4])
-            clazz.init_clazz(p[7], p[8])
+            clazz.initialize_methods(p[7], p[8])
         else:
             raise NetworkParserError(p)
         p[0] = clazz
@@ -246,11 +246,11 @@ class NetworkParser:
         if len(p) == 8:
             embedded = tuple([(_, _) for _ in p[3]])
             clazz = NetworkClassInstance(self.owner, p[3], self.owner, embedded=embedded, super_class=None)
-            clazz.init_clazz(p[5], p[6])
+            clazz.initialize_methods(p[5], p[6])
         elif len(p) == 11:
             embedded = tuple([(_, _) for _ in p[3]])
             clazz = NetworkClassInstance(self.owner, p[3], self.owner, embedded=embedded, super_class=p[5])
-            clazz.init_clazz(p[8], p[9])
+            clazz.initialize_methods(p[8], p[9])
         else:
             raise NetworkParserError(p)
         p[0] = clazz

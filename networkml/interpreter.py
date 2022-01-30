@@ -80,8 +80,10 @@ class NetworkInterpreter(NetworkMethod):
         for obj in result:
             if isinstance(obj, NetworkClassInstance):
                 rtn = obj
+                caller.declare_class(obj, globally=True)
             elif isinstance(obj, NetworkMethod):
                 rtn = obj
+                caller.declare_method(obj, globally=True)
             elif isinstance(obj, NetworkCallable):
                 rtn = obj(caller)
         return rtn
