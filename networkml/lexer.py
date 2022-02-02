@@ -41,7 +41,7 @@ class NetworkLexer:
         'else': 'ELSE',
         'while': 'WHILE',
         'for': 'FOR',
-        # 'this': 'THIS',
+        'this': 'THIS',
         'class': 'CLASS',
         'function': 'FUNC',
         'return': 'RETURN',
@@ -84,6 +84,7 @@ class NetworkLexer:
               'SUBST',
               # 'DOUBLEQUOTE',
               'SEMICORON',
+              'COLON'
               # 'COMMENT'
               ] + list(reserved.values())
     token_list = (
@@ -165,6 +166,7 @@ class NetworkLexer:
     t_SUBST = r"="
     # t_DOUBLEQUOTE = r"\""
     t_SEMICORON = r";"
+    t_COLON = r":"
     # t_SELF = r"\$self"
     # t_GENERATOR = r"\$generator"
     # t_MANAGER = r"\$manager"
@@ -269,6 +271,7 @@ class NetworkParser:
     def p_class_member_declarations(self, p):
         """
         class_member_declarations : property_declaration
+        class_member_declarations : instance_method_declaration
         class_member_declarations : func_declaration
         class_member_declarations : class_declaration
         class_member_declarations : class_member_declarations class_member_declarations
@@ -300,10 +303,20 @@ class NetworkParser:
 
     def p_init_declaration(self, p):
         """
-        init_declaration : INIT func_args_tuple  LBRACKET executions RBRACKET
+        init_declaration : INIT instance_method_args_tuple  LBRACKET executions RBRACKET
         """
-        method = NetworkMethod(self.owner, p[1], args=p[2][0], stmts=p[4], globally=True)
+        method = NetworkMethod(self.owner, p[1], args=p[2], stmts=p[4], instance_method=True, globally=True)
         p[0] = method
+
+    def p_instance_method_declaration(self, p):
+        """
+        instance_method_declaration : FUNC SYMBOL instance_method_args_tuple  LBRACKET executions RBRACKET
+        """
+        if len(p) == 7:
+            method = NetworkMethod(self.owner, p[2], args=p[3], stmts=p[5], instance_method=True, globally=False, lexdata=p.lexer.lexdata)
+            p[0] = method
+        else:
+            raise NetworkParserError(p)
 
     def p_func_declaration(self, p):
         """
@@ -347,6 +360,29 @@ class NetworkParser:
         else:
             raise NetworkParserError(p)
 
+    def p_instance_method_args_tuple(self, p):
+        """
+        instance_method_args_tuple : open_instance_method_args_list RPAR
+        instance_method_args_tuple : open_instance_method_args_list COMMA func_arg_options RPAR
+        """
+        if len(p) == 3:
+            p[0] = tuple(p[1])
+        else:
+            p[0] = p[1]
+            p[0].extend(p[3])
+            p[0] = tuple(p[0])
+
+    def p_open_instance_method_args_list(self, p):
+        """
+        open_instance_method_args_list : LPAR THIS
+        open_instance_method_args_list : open_instance_method_args_list COMMA SYMBOL
+        """
+        if len(p) == 3:
+            p[0] = [p[2]]
+        else:
+            p[0] = p[1]
+            p[0].append(p[3])
+
     def p_func_args_tuple(self, p):
         """
         func_args_tuple : empty_tuple
@@ -384,6 +420,7 @@ class NetworkParser:
         single_execution : break       SEMICORON
         single_execution : while_statement
         single_execution : for_statement
+        single_execution : foreach_statement
         single_execution : if_statement
         """
         if len(p) == 2:
@@ -463,6 +500,7 @@ class NetworkParser:
         subst_callee : reachability_network
         subst_callee : method_args_tuple
         subst_callee : LPAR spec RPAR
+        subst_callee : list
         """
         if len(p) == 2:
             p[0] = p[1]
@@ -598,6 +636,26 @@ class NetworkParser:
         """
         p[0] = p[1]
 
+    def p_list(self, p):
+        """
+        list : open_list RBRACE
+        """
+        p[0] = p[1]
+
+    def p_open_list(selfs, p):
+        """
+        open_list : LBRACE
+        open_list : LBRACE method_arg_tuple_condidate
+        open_list : open_list COMMA method_arg_tuple_condidate
+        """
+        if len(p) == 2:
+            p[0] = []
+        elif len(p) == 3:
+            p[0] = [p[2]]
+        else:
+            p[0] = p[1]
+            p[0].append(p[3])
+
     def p_method_args_tuple(self, p):
         """
         method_args_tuple : empty_tuple
@@ -605,13 +663,15 @@ class NetworkParser:
         method_args_tuple : method_opened_args_tuple COMMA options RPAR
         """
         if len(p) == 2:
-            p[0] = []
+            p[0] = p[1]
         elif len(p) == 3:
             p[0] = p[1]
+            p[0] = tuple(p[0])
         elif len(p) == 5:
             p[0] = p[1]
             options = p[3]
             p[0].append(options)
+            p[0] = tuple(p[0])
         else:
             raise NetworkParserError(p)
 
@@ -631,6 +691,7 @@ class NetworkParser:
         method_arg_tuple_condidate : spec_assignments
         method_arg_tuple_condidate : method_call
         method_arg_tuple_condidate : method_args_tuple
+        method_arg_tuple_candidate : list
         """
         p[0] = p[1]
 
@@ -682,8 +743,29 @@ class NetworkParser:
         returnee : bool
         returnee : null
         returnee : reference
+        returnee : list
+        returnee : arith_oper
+        returnee : method_call
         """
         p[0] = p[1]
+
+    def p_foreach_statement(self, p):
+        """
+        foreach_statement : FOR LPAR symbol COLON symbol RPAR single_execution
+        foreach_statement : FOR LPAR symbol COLON symbol RPAR LBRACKET executions RBRACKET
+        """
+        if len(p) == 8:
+            fetch = p[3]
+            fetchee = p[5]
+            stmt = ForeachStatement(self.owner, fetch, fetchee)
+            stmt.set_statements([p[7]])
+            p[0] = stmt
+        elif len(p) == 10:
+            fetch = p[3]
+            fetchee = p[5]
+            stmt = ForeachStatement(self.owner, fetch, fetchee)
+            stmt.set_statements(p[8])
+            p[0] = stmt
 
     def p_for_statement(self, p):
         """

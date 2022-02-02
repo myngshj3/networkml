@@ -1138,10 +1138,11 @@ class NetworkMethod(NetworkCallable):
         Break = "break"
         Exception = "exception"
 
-    def __init__(self, owner, signature, args=(), stmts=(), cancel_stacking=False, *otherargs, **kwargs):
+    def __init__(self, owner, signature, args=(), stmts=(), cancel_stacking=False, instance_method=False, *otherargs, **kwargs):
         super().__init__(owner, args=args, safe_call=True, cancel_stacking=cancel_stacking)
         self._signature = signature
         self._clazz = None
+        self._instance_method = instance_method
         self._callees = []
         # self._document = NetworkMethodDocument(signature, self)
         # if "lexdata" in kwargs.keys():
@@ -1183,6 +1184,9 @@ class NetworkMethod(NetworkCallable):
     def clazz(self, clazz):
         self._clazz = clazz
 
+    @property
+    def instance_method(self):
+        return self._instance_method
     #@property
     #def document(self):
     #    return self._document
@@ -1366,22 +1370,22 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
         if "globally" in kwargs.keys():
             self._globally = kwargs["globally"]
         self._running = False
-        # implements methods
-        # get_armer().arm_default_methods(self, self.generator, self.owner)
 
     """
     Attribute accessors section.
     """
     # only for debug use
     def dump_attributes(self):
+        att = "Attributes of {}:\n".format(self.signature)
         for i in range(len(self._attributes[self.STACK])):
-            self.print("stack[{}]".format(i))
+            att += "stack[{}]\n".format(i)
             for k in self._attributes[self.STACK][i].keys():
                 if k == "break_point":
                     continue
-                self.print("  {}".format(k))
+                att += "  {}\n".format(k)
                 for f in self._attributes[self.STACK][i][k].keys():
-                    self.print("    {}".format(f))
+                    att += "    {}\n".format(f)
+        return att
 
     # Caution! This method is internal method. Never call from other class scope.
     def _accessible_attributes(self, args=(), names=(), stack_criteria=None):
@@ -1822,7 +1826,7 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
         if isinstance(self._clazz, NetworkClassInstance):
             return self._clazz
         elif self.owner is not None:
-            return self.owner.get_class(self._clazz)
+            return self.owner.get_class(self.owner, self._clazz)
         return None
 
     @property
@@ -2085,9 +2089,10 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
 
     @property
     def signature(self):
-        if self.super_class is None:
-            return self._signature
-        return "{}::{}[{}]".format(self.super_class, self.generator, self._signature)
+        # if self.super_class is None:
+        #     return self._signature
+        # return "{}::{}[{}]".format(self.super_class, self.generator, self._signature)
+        return "{}".format(self._signature)
 
     @property
     def clazz(self):
@@ -2099,7 +2104,7 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
             return None
         if self.generator is None:
             return None
-        return self.generator.get_class(self._super_class)
+        return self.generator.get_class(self.generator, self._super_class)
 
     @property
     def instance_ids(self):
@@ -2172,7 +2177,9 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
         instance.set_running(True)
         instance.set_stack_enable(False)
         if initializer is not None:
-            initializer(instance, args)
+            actual_args = [instance]
+            actual_args.extend(args)
+            initializer(instance, actual_args)
         instance.set_stack_enable(True)
         return instance
 
@@ -2189,7 +2196,9 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
         return ret
 
     def __repr__(self):
-        return "{}".format(self.signature)
+        if self.super_class is None:
+            return self._signature
+        return "{}::{}[{}]".format(self.super_class, self.generator, self._signature)
 
 
 class NetworkClass(NetworkClassInstance):
@@ -2432,7 +2441,7 @@ class HierarchicalAccessor(NetworkComponent):
             if isinstance(obj, NetworkInstance):
                 if not obj.has_attribute(caller, n):
                     symbol = self.complex_name(names, ())
-                    raise NetworkNothing("Couldn't access to {}.{}. {}:{} not found.".format(obj, symbol, type(n), n))
+                    raise NetworkNothing("Couldn't access to {}.{}. '{}' not found.".format(obj, symbol, n))
                 obj = obj.get_attribute(obj, n)
             elif isinstance(obj, dict):
                 if n not in obj.keys():
@@ -2624,7 +2633,7 @@ class NetworkMethodCaller(NetworkCallable):
 
     def pre_call_impl(self, caller, args):
         # This returns actual method, caller and args.
-        actual_args = self.args_impl(caller, args)
+        args = self.args_impl(caller, args)
         actual_caller = caller
         if self.is_default_method:
             holder = actual_caller
@@ -2644,6 +2653,12 @@ class NetworkMethodCaller(NetworkCallable):
         # self.log.debug("done.")
         if callee is None:
             raise NetworkNotImplementationError("Method {}.{} not found.".format(caller, self.method_name))
+        if isinstance(callee, NetworkMethod) and callee.instance_method:
+            actual_args = [holder]
+            actual_args.extend(args)
+            actual_args = tuple(actual_args)
+        else:
+            actual_args = args
         return callee, actual_caller, actual_args
 
     def args_impl(self, caller, args, **kwargs):
@@ -2651,7 +2666,9 @@ class NetworkMethodCaller(NetworkCallable):
             raise NetworkError("Invalid caller {}.".format(caller))
         args_converted = []
         for a in self.args:
-            if isinstance(a, NetworkSymbol):
+            if isinstance(a, NetworkInstance):
+                x = a
+            elif isinstance(a, NetworkSymbol):
                 x = caller.accessor.get(caller, a.symbol)
             elif isinstance(a, NetworkCallable):
                 x = a(caller)
@@ -2891,7 +2908,7 @@ class ForeachStatement(NetworkSequentialStatements):
         return args
 
     def __repr__(self):
-        return "for {} {} {}".format(self.var, self.fetchee, self.statements)
+        return "for ({}: {}) ...".format(self.var, self.fetchee)
 
 
 class ForallStatement(ForeachStatement):
@@ -2912,7 +2929,8 @@ class ForallStatement(ForeachStatement):
         return True
 
     def __repr__(self):
-        return "forall {} in {}: {}".format(self.var, self.fetchee, self.statements)
+        return "forall {} in {}: ...".format(self.var, self.fetchee)
+        #return "forall {} in {}: {}".format(self.var, self.fetchee, self.statements)
 
 
 class ExistsStatement(ForeachStatement):
@@ -2932,7 +2950,8 @@ class ExistsStatement(ForeachStatement):
         return False
 
     def __repr__(self):
-        return "exists {} in {}: {}".format(self.var, self.fetchee, self.statements)
+        return "exists {} in {}: ...".format(self.var, self.fetchee)
+        #return "exists {} in {}: {}".format(self.var, self.fetchee, self.statements)
 
 
 class WhileStatement(NetworkSequentialStatements):
@@ -2957,7 +2976,8 @@ class WhileStatement(NetworkSequentialStatements):
         return rtn
 
     def __repr__(self):
-        return "while({}){}".format(self._cond, self.statements)
+        return "while(..){..}"
+        #return "while({}){}".format(self._cond, self.statements)
 
 
 class IfElifElseStatement(NetworkSequentialStatements):
@@ -3005,14 +3025,15 @@ class IfElifElseStatement(NetworkSequentialStatements):
         return rtn
 
     def __repr__(self):
-        repr = "if ({}) {}".format(self._conditions[0], len(self.statements[0]))
-        for c, s in zip(self.conditions[1:], self.statements[1:]):
-            if c == self.conditions[len(self.conditions)-1]:
-                _repr = "else {}".format(s)
-            else:
-                _repr = "elif ({}) {}".format(c, s)
-            repr = "{} {}".format(repr, _repr)
-        return repr
+        return "if(..){}elif(..)else{..}"
+        # repr = "if ({}) {}".format(self._conditions[0], len(self.statements[0]))
+        # for c, s in zip(self.conditions[1:], self.statements[1:]):
+        #     if c == self.conditions[len(self.conditions)-1]:
+        #         _repr = "else {}".format(s)
+        #     else:
+        #         _repr = "elif ({}) {}".format(c, s)
+        #     repr = "{} {}".format(repr, _repr)
+        # return repr
 
 
 class MethodAvator(NetworkMethod):
@@ -3218,7 +3239,7 @@ class ExtensibleWrappedAccessor(StrictWrappedAccessor):
         return rtn
 
     def __repr__(self):
-        return "ExtensibleWrappedAccessor to {}.{}".format(self.actual_owner, self.signature)
+        return "{}".format(self.signature)
 
 
 class MethodWrapper(NetworkMethod):
