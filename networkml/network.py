@@ -1385,6 +1385,11 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
                 att += "  {}\n".format(k)
                 for f in self._attributes[self.STACK][i][k].keys():
                     att += "    {}\n".format(f)
+        for k in self._attributes.keys():
+            if k != self.STACK:
+                att += k+"\n"
+                for m in self._attributes[k].keys():
+                    att += "  {}\n".format(m)
         return att
 
     # Caution! This method is internal method. Never call from other class scope.
@@ -2179,7 +2184,7 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
         if initializer is not None:
             actual_args = [instance]
             actual_args.extend(args)
-            initializer(instance, actual_args)
+            initializer(owner, actual_args)
         instance.set_stack_enable(True)
         return instance
 
