@@ -882,7 +882,7 @@ class NetworkBaseCallable(NetworkComponent, GenericCallable):
     ControlReturned = 2
     REPORT_BREAK_POINT = "report_break_point"
 
-    def __init__(self, owner, args=(), closer=False, cancel_stacking=False, safe_call=False, **kwargs):
+    def __init__(self, owner, args=(), closer=False, cancel_stacking=True, safe_call=False, **kwargs):
         super().__init__(owner, args=args)
         self._args = args
         self._closer = closer
@@ -974,7 +974,7 @@ class NetworkCallable(NetworkBaseCallable, GenericCallable):
 
     log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
-    def __init__(self, owner, args=(), closer=False, cancel_stacking=False, safe_call=False, **kwargs):
+    def __init__(self, owner, args=(), closer=False, cancel_stacking=True, safe_call=False, **kwargs):
         super().__init__(owner, args=args, close=closer, cancel_stacking=cancel_stacking, safe_call=safe_call)
 
     def do_nothing(self, caller, args):
@@ -1220,6 +1220,7 @@ class NetworkMethod(NetworkCallable):
                 self.log.debug(rtn)
                 continue
             if caller.break_point is not None:
+                caller.set_break_point(caller, None)
                 self.log.debug("caller.break_point: {0}".format(caller.break_point))
                 if isinstance(rtn, NetworkReturnValue):
                     self.log.debug("Exception occurred, but safely resumed.")
@@ -1450,9 +1451,15 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
         return tuple(acc)
 
     # This method is public accessible.
-    def has_attribute(self, caller, name):
+    def has_attribute(self, caller, name, security=None, globally=True):
+        if security is None:
+            security = (self.STACK, self.PUBLIC, self.PROTECTED, self.PRIVATE)
         acc = self._get_accessibilities(caller)
-        att = self._accessible_attributes(acc, names=[name])
+        _acc = []
+        for a in acc:
+            if a in security:
+                _acc.append(a)
+        att = self._accessible_attributes(_acc, names=[name])
         return len(att) != 0
 
     # This method is public accessible.
@@ -1483,7 +1490,14 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
         att = self._accessible_attributes(acc, names=None)
         return att
 
-    def _set_attribute(self, name, val, kind, depth=None, overwrite=False):
+    def _set_attribute(self, name, val, kind, depth=None, overwrite=None):
+        """
+        overwrite: None  -> set regardless var is set or not
+                   True  -> set if var is set
+                   False -> set if var is not set
+        depth: if depth given, this method tries setting on depth or more deeper stack area
+        """
+        #print("_set_attribute", name, kind, depth, overwrite)
         # FIXME well-consider secure access.
         if isinstance(val, NetworkMethod):
             t = self.METHODS
@@ -1513,7 +1527,7 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
                 self._attributes[kind][depth][t][name] = val
                 return
             while 0 <= depth:
-                if name not in self._attributes[kind][t][depth].keys():
+                if name not in self._attributes[kind][depth][t].keys():
                     if not overwrite:
                         self._attributes[kind][depth][t][name] = val
                         return
@@ -1549,11 +1563,13 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
         # FIXME prohibition should be adequately notified.
         raise NetworkError("Illegal attempt to remove attribute. Not set yet.")
 
-    def set_attribute(self, caller, name, val, kind=None, depth=None, overwrite=None):
+    def set_attribute(self, caller, name, val, kind=None, globally=False, depth=None, overwrite=None):
         # FIXME well-consider secure access.
         # print("***** WARNING!!! SET_ATTRIBUTE IS DEPRECATED.")
         if kind is None:
             kind = self.STACK
+        if globally:
+            depth = 0
         self._set_attribute(name, val, kind=kind, depth=depth, overwrite=overwrite)
 
     def remove_attribute(self, caller, name, val, kind=None, depth=None, overwrite=None):
@@ -1666,11 +1682,15 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
         # self.log.debug("*** CALLER {0} {1}".format(type(caller), caller))
         # self.log.debug("*** Searching CALLABLE_ATTRIBUTE")
         weakest_acc = self._get_accessibilities(caller)
-        if self.STACK in weakest_acc:
-            att = self._accessible_attributes([self.STACK], names=[sig], stack_criteria=(self.VARS, self.CLASSES))
-            for a in att:
-                if isinstance(a[1], NetworkCallable):
-                    return a[1]
+        att = self._accessible_attributes(weakest_acc, names=[sig], stack_criteria=(self.VARS, self.CLASSES))
+        for a in att:
+            if isinstance(a[1], NetworkCallable):
+                return a[1]
+        # if self.STACK in weakest_acc:
+        #     att = self._accessible_attributes([self.STACK], names=[sig], stack_criteria=(self.VARS, self.CLASSES))
+        #     for a in att:
+        #         if isinstance(a[1], NetworkCallable):
+        #             return a[1]
         return None
 
     def get_method(self, caller, sig):
@@ -2431,10 +2451,10 @@ class HierarchicalAccessor(NetworkComponent):
             return NetworkNothing("Unavailable indexer {}.".format(i))
         return True
 
-    def _get_named_value(self, caller, first_name, middle_names, last_name, indices):
-        return self._get_named_object(caller, first_name, middle_names, last_name, indices)
+    def _get_named_value(self, caller, first_name, middle_names, last_name, indices, security=NetworkInstance.STACK, globally=False):
+        return self._get_named_object(caller, first_name, middle_names, last_name, indices, security=security, globally=globally)
 
-    def _get_named_object(self, caller, first_name, middle_names, last_name, indices):
+    def _get_named_object(self, caller, first_name, middle_names, last_name, indices, security=NetworkInstance.STACK, globally=False):
         names = []
         if first_name is not None:
             names.append(first_name)
@@ -2493,10 +2513,10 @@ class HierarchicalAccessor(NetworkComponent):
             idx = "{}[{}]".format(idx, j)
         return "{}{}".format(name, idx)
 
-    def get(self, caller, hierarchical_name, types=None):
+    def get(self, caller, hierarchical_name, types=None, security=NetworkInstance.STACK, globally=False):
         original_caller = caller
         first_name, middle_names, last_name, indices = self._separate_name(caller, hierarchical_name)
-        rtn = self._get_named_value(caller, first_name, middle_names, last_name, indices)
+        rtn = self._get_named_value(caller, first_name, middle_names, last_name, indices, security=security, globally=globally)
         if isinstance(rtn, NetworkNothing):
             raise rtn
         if not (type(types) is list or type(types) is tuple):
@@ -2510,10 +2530,13 @@ class HierarchicalAccessor(NetworkComponent):
                 return rtn
         raise NetworkNothing("{} not found.".format(hierarchical_name))
 
-    def _set_named_value(self, caller, first_name, middle_names, last_name, indices, val):
-        return self._set_named_object(caller, first_name, middle_names, last_name, indices, val)
+    def _set_named_value(self, caller, first_name, middle_names, last_name, indices, val, security=NetworkInstance.STACK,
+                         globally=False, overwrite=None):
+        return self._set_named_object(caller, first_name, middle_names, last_name, indices, val, security, globally)
 
-    def _set_named_object(self, caller, first_name, middle_names, last_name, indices, val):
+    def _set_named_object(self, caller, first_name, middle_names, last_name, indices, val, security=NetworkInstance.STACK,
+                          globally=False, overwrite=None):
+        #print("_set_named_object", first_name, middle_names, last_name, indices, security, globally)
         names = []
         if first_name is not None:
             names.append(first_name)
@@ -2568,7 +2591,8 @@ class HierarchicalAccessor(NetworkComponent):
                     symbol = self.complex_name(names, indices[:j + 1])
                     raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
         if isinstance(obj, NetworkInstance):
-            obj.set_attribute(obj, last_something, val)
+            #obj.set_attribute(obj, last_something, val)
+            obj.set_attribute(caller, last_something, val, kind=security, globally=globally, overwrite=overwrite)
             return True
         i = last_something
         if isinstance(i, str):
@@ -2597,10 +2621,12 @@ class HierarchicalAccessor(NetworkComponent):
             raise NetworkNothing("Couldn't access to {}.{} to set.".format(obj, symbol))
         return True
 
-    def set(self, caller, hierarchical_name, val, value=True, method=False, clazz=False):
+    def set(self, caller, hierarchical_name, val, security=NetworkInstance.STACK, globally=False,
+            overwrite=None, value=True, method=False, clazz=False):
         original_caller = caller
         first_name, middle_names, last_name, indices = self._separate_name(caller, hierarchical_name)
-        ret = self._set_named_value(caller, first_name, middle_names, last_name, indices, val)
+        ret = self._set_named_value(caller, first_name, middle_names, last_name, indices, val, security=security,
+                                    globally=globally, overwrite=overwrite)
         return ret
 
 
@@ -2609,7 +2635,7 @@ class NetworkMethodCaller(NetworkCallable):
     log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
     def __init__(self, owner, hierarchy_name, args=()):
-        super().__init__(owner, args=args, cancel_stacking=False)
+        super().__init__(owner, args=args, cancel_stacking=True)
         name = hierarchy_name.symbol
         self._hierarchical_name = name
         names = name.split(".")
@@ -2692,17 +2718,19 @@ class NetworkMethodCaller(NetworkCallable):
             args = "{}".format(self.args[0])
             for a in self.args[1:]:
                 args = "{},{}".format(args, a)
-        return "MethodCaller {}({})".format(self.hierarchical_name, args)
+        return "{}({})".format(self.hierarchical_name, args)
 
 
 class NetworkSubstituter(NetworkCallable):
 
     log = log4p.GetLogger(logger_name=__name__, config=config.get_log_config()).logger
 
-    def __init__(self, owner, var, callee, globally=False):
+    def __init__(self, owner, var, callee, globally=False, security=NetworkInstance.STACK, overwrite=False):
         super().__init__(owner, args=tuple([callee]), cancel_stacking=True)
         self._var = var.symbol
         self._globally = globally
+        self._security = security
+        self._overwrite = overwrite
 
     def set_owner(self, owner):
         super().set_owner(owner)
@@ -2719,6 +2747,14 @@ class NetworkSubstituter(NetworkCallable):
     def globally(self):
         return self._globally
 
+    @property
+    def security(self):
+        return self._security
+
+    @property
+    def overwrite(self):
+        return self._overwrite
+
     def call_impl(self, caller, args, **kwargs):
         # print("*** substituting 1", self.var, "of", caller, "<=", self.callee)
         if self.globally:
@@ -2727,7 +2763,7 @@ class NetworkSubstituter(NetworkCallable):
             depth = caller.deepest_stack_id(caller)
         self.log.debug("##### {0} <-- {1}".format(self.var, args[0]))
         #ret = caller.set_attribute(caller, self.var, args[0], depth=depth)
-        caller.accessor.set(caller, self.var, args[0])
+        caller.accessor.set(caller, self.var, args[0], security=self.security, globally=self.globally, overwrite=self.overwrite)
         # accessor.set(caller, self.var, args[0])
         # print("*** substituted", self.var, "of", caller, "<=", self.callee)
 
@@ -2737,7 +2773,7 @@ class NetworkSubstituter(NetworkCallable):
         return super().args_impl(caller, self.args)
 
     def __repr__(self):
-        return "Substituter {} <- {}".format(self.var, self.callee)
+        return "{} <- {}".format(self.var, self.callee)
 
 
 class NetworkBreak(NetworkCallable):
@@ -2828,6 +2864,7 @@ class NetworkSequentialStatements(NetworkCallable):
         for stmt in self.statements:
             rtn = stmt(caller, args)
             if caller.break_point is not None:
+                caller.set_break_point(caller, None)
                 return rtn
         return rtn
 
@@ -2902,6 +2939,7 @@ class ForeachStatement(NetworkSequentialStatements):
         while self.fetch(caller):
             rtn = super().call_impl(caller, args)
             if caller.break_point is not None:
+                caller.set_break_point(caller, None)
                 break
         return rtn
 
@@ -2913,7 +2951,7 @@ class ForeachStatement(NetworkSequentialStatements):
         return args
 
     def __repr__(self):
-        return "for ({}: {}) ...".format(self.var, self.fetchee)
+        return "for({}:{})...".format(self.var, self.fetchee)
 
 
 class ForallStatement(ForeachStatement):
@@ -2977,6 +3015,7 @@ class WhileStatement(NetworkSequentialStatements):
         while self.condition.evaluate(caller):
             rtn = super().call_impl(caller, args)
             if caller.break_point is not None:
+                caller.set_break_point(caller, None)
                 break
         return rtn
 
@@ -3025,12 +3064,13 @@ class IfElifElseStatement(NetworkSequentialStatements):
                 for s in stmt:
                     rtn = s(caller)
                     if caller.break_point is not None:
+                        caller.set_break_point(caller, None)
                         return rtn
                 return rtn
         return rtn
 
     def __repr__(self):
-        return "if(..){}elif(..)else{..}"
+        return "if(..){..}elif(..){..}else{..}"
         # repr = "if ({}) {}".format(self._conditions[0], len(self.statements[0]))
         # for c, s in zip(self.conditions[1:], self.statements[1:]):
         #     if c == self.conditions[len(self.conditions)-1]:

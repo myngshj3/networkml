@@ -24,6 +24,7 @@ from networkml.validator import BooleanConjunctiveEvaluatee, BooleanDisjunctiveE
 from networkml.validator import BooleanGreaterThanEvaluatee, BooleanLessOrEqualsEvaluatee, BooleanLessThanEvaluatee
 from networkml.validator import BooleanEqualityEvaluatee, BooleanDifferenceEvaluatee, BooleanMatchee, BooleanUnmatchee
 from networkml.validator import BooleanUnaryEvaluatee, TrueEvaluatee
+from networkml.network import NetworkInstance
 from networkml.network import NetworkClassInstance, NetworkMethodCaller, WhileStatement, IfElifElseStatement
 from networkml.network import ReachabilitySpecification, NetworkBreak
 from networkml.network import NetworkMethod, ForeachStatement, NetworkSubstituter
@@ -47,9 +48,9 @@ class NetworkLexer:
         'return': 'RETURN',
         'break': 'BREAK',
         'global': 'GLOBAL',
-        # 'private': 'PRIVATE',
-        # 'protected': 'PROTECTED',
-        # 'public': 'PUBLIC',
+        'private': 'PRIVATE',
+        'protected': 'PROTECTED',
+        'public': 'PUBLIC',
         'property': 'PROPERTY',
         'properties': 'PROPERTIES',
         'read': 'READ',
@@ -509,19 +510,28 @@ class NetworkParser:
 
     def p_subst(self, p):
         """
-        subst : GLOBAL substitutee SUBST subst_callee
-        subst :        substitutee SUBST subst_callee
-        subst :        substitutee SUBST arith_oper
+        subst :           substitutee SUBST subst_callee
+        subst : GLOBAL    substitutee SUBST subst_callee
+        subst : PRIVATE   substitutee SUBST subst_callee
+        subst : PUBLIC    substitutee SUBST subst_callee
+        subst : PROTECTED substitutee SUBST subst_callee
         """
-        if len(p) == 5:
-            globally = True
-            writee = p[2]
-            callee = p[4]
-        else:
+        if len(p) == 4:
             globally = False
+            security = NetworkInstance.STACK
+            overwrite = True
             writee = p[1]
             callee = p[3]
-        subst = NetworkSubstituter(self.owner, writee, callee, globally=globally)
+        else:
+            globally = False
+            security = p[1]
+            if p[1] == "global":
+                security = NetworkInstance.STACK
+                globally = True
+            overwrite = False
+            writee = p[2]
+            callee = p[4]
+        subst = NetworkSubstituter(self.owner, writee, callee, globally=globally, security=security)
         p[0] = subst
 
     # def p_natural_number(self, p):
@@ -1264,9 +1274,38 @@ class NetworkParser:
             p[0] = ReachabilitySpecification(self.owner, p[1])
             p[0].set_reaches(p[2])
 
+    # ambiguous_operand
+    def p_ambiguous_loperand(self, p):
+        """
+        ambiguous_loperand : reference
+        ambiguous_loperand : string
+        ambiguous_loperand : int
+        ambiguous_loperand : float
+        """
+        p[0] = p[1]
+
+    # ambiguous_operand
+    def p_ambiguous_roperand(self, p):
+        """
+        ambiguous_roperand : reference
+        ambiguous_roperand : string
+        ambiguous_roperand : int
+        ambiguous_roperand : float
+        ambiguous_roperand : REPATTERN
+        """
+        p[0] = p[1]
+
     # ambiguous_spec
     def p_ambiguous_spec(self, p):
         """
+        ambiguous_spec : ambiguous_loperand EQUAL            ambiguous_roperand
+        ambiguous_spec : ambiguous_loperand DIFFERENT        ambiguous_roperand
+        ambiguous_spec : ambiguous_loperand GREATER_THAN     ambiguous_roperand
+        ambiguous_spec : ambiguous_loperand GREATER_OR_EQUAL ambiguous_roperand
+        ambiguous_spec : ambiguous_loperand LESS_THAN        ambiguous_roperand
+        ambiguous_spec : ambiguous_loperand LESS_OR_EQUAL    ambiguous_roperand
+        ambiguous_spec : ambiguous_loperand MATCH            ambiguous_roperand
+        ambiguous_spec : ambiguous_loperand UNMATCH          ambiguous_roperand
         ambiguous_spec : reference EQUAL     arith_lopr
         ambiguous_spec : reference EQUAL     string
         ambiguous_spec : reference EQUAL     bool
