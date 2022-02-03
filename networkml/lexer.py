@@ -638,9 +638,16 @@ class NetworkParser:
         """
         p[0] = None
 
+    def p_this(self, p):
+        """
+        this : THIS
+        """
+        p[0] = NetworkSymbol(self.owner, p[1])
+
     def p_reference(self, p):
         """
         reference : symbol
+        reference : this
         reference : hierarch_symbol
         reference : complex_symbol
         """
@@ -652,7 +659,7 @@ class NetworkParser:
         """
         p[0] = p[1]
 
-    def p_open_list(selfs, p):
+    def p_open_list(self, p):
         """
         open_list : LBRACE
         open_list : LBRACE method_arg_tuple_condidate

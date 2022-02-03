@@ -988,7 +988,9 @@ class NetworkCallable(NetworkBaseCallable, GenericCallable):
         for a in args:
             # print("** pre  ** ", type(a), a, "of a", type(caller), caller)
             # print("** post ** ", type(a), a, "of a", type(caller), caller)
-            if isinstance(a, NetworkSymbol):
+            if isinstance(a, NetworkInstance):
+                x = a
+            elif isinstance(a, NetworkSymbol):
                 x = caller.accessor.get(caller, a.symbol)
             elif isinstance(a, NetworkCallable):
                 x = a(caller)
@@ -1697,16 +1699,26 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
         # This method is opened method, so basically arrows access to registered method, not callable variable.
         # search in secured area.
         weakest_acc = self._get_accessibilities(caller)
-        if self.STACK in weakest_acc:
-            att = self._accessible_attributes([self.STACK], names=[sig], stack_criteria=[self.METHODS])
-            if len(att) != 0:
-                return att[0][1]
+        att = self._accessible_attributes(weakest_acc, names=[sig], stack_criteria=[self.METHODS])
+        if len(att) != 0:
+            return att[0][1]
+        # if self.STACK in weakest_acc:
+        #     att = self._accessible_attributes([self.STACK], names=[sig], stack_criteria=[self.METHODS])
+        #     if len(att) != 0:
+        #         return att[0][1]
+        m = self.clazz.get_method(caller, sig)
+        if m is not None:
+            return m
+        if self.clazz.super_class is not None:
+            m = self.clazz.super_class.get_method(caller, sig)
+            if m is not None:
+                return m
         # search generator method. This corresponds to call class method.
-        if self.generator is not None:
-            att = self.generator.get_method(caller, sig)
-            if att is not None:
-                if isinstance(att, NetworkMethod):
-                    return att
+        # if self.generator is not None:
+        #     att = self.generator.get_method(caller, sig)
+        #     if att is not None:
+        #         if isinstance(att, NetworkMethod):
+        #             return att
         return None
 
     def get_class(self, caller, sig):
@@ -1848,15 +1860,17 @@ class NetworkInstance(NetworkComponent, NetworkDocumentable):
 
     @property
     def clazz(self):
-        if isinstance(self._clazz, NetworkClassInstance):
-            return self._clazz
-        elif self.owner is not None:
-            return self.owner.get_class(self.owner, self._clazz)
-        return None
+        return self._attributes[self.PRIVATE][self.GENERATOR]
+        # if isinstance(self._clazz, NetworkClassInstance):
+        #     return self._clazz
+        # elif self.owner is not None:
+        #     return self.owner.get_class(self.owner, self._clazz)
+        # return None
 
     @property
     def generator(self):
-        return self._clazz
+        return self._attributes[self.PRIVATE][self.GENERATOR]
+        #return self._clazz
 
     @property
     def id(self):
@@ -2106,6 +2120,11 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
         self._initializer = None
         self._last_instance = 0
         self._instance_ids = []
+        # if super_class is not None:
+        #     #sup = generator.get_class(self, super_class)
+        #     sup = generator.accessor.get(generator, super_class, security=self.PUBLIC)
+        #     print("*** GENERATOR:{}, SUPER_CLASS:{}, {}".format(generator, super_class, sup))
+        #     self.accessor.set(self, super_class, sup, security=self.PUBLIC)
         #
         # FIXME document management feature is not implemented.
         # self._document = NetworkInstanceDocument(self.signature, self.id, self.clazz)
@@ -2121,15 +2140,17 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
 
     @property
     def clazz(self):
-        return None
+        return self._attributes[self.PRIVATE][self.GENERATOR]
+        #return self
 
     @property
     def super_class(self):
         if self._super_class is None:
             return None
-        if self.generator is None:
-            return None
-        return self.generator.get_class(self.generator, self._super_class)
+        generator = self._attributes[self.PRIVATE][self.GENERATOR]
+        sup = generator.accessor.get(generator, self._super_class, security=self.PUBLIC)
+        return sup
+        #return self.accessor.get(self, self._super_class, security=self.PUBLIC)
 
     @property
     def instance_ids(self):
@@ -2144,10 +2165,13 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
     def initialize_methods(self, initializer, method_list=()):
         initializer.set_owner(self)
         self._initializer = initializer
+        initializer.set_owner(self)
+        self.register_method(self, initializer.signature, initializer, depth=0, overwrite=None)
+        self.log.debug(str(initializer))
         for e in method_list:
             e.set_owner(self)
             self.register_method(self, e.signature, e, depth=0, overwrite=None)
-            debug(e)
+            self.log.debug(str(e))
 
     @property
     def globally(self):
@@ -2177,9 +2201,13 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
 
     def get_method(self, caller, sig):
         # FIXME consider class hierarchy and security
-        m = super().get_method(caller, sig)
-        if m is not None:
-            return m
+        weakest_acc = self._get_accessibilities(caller)
+        att = self._accessible_attributes(weakest_acc, names=[sig], stack_criteria=[self.METHODS])
+        if len(att) != 0:
+            return att[0][1]
+        # m = super().get_method(caller, sig)
+        # if m is not None:
+        #     return m
         if self.super_class is not None:
             m = self.super_class.get_method(caller, sig)
             if m is not None:
@@ -2221,9 +2249,9 @@ class NetworkClassInstance(NetworkInstance, NetworkCallable):
         return ret
 
     def __repr__(self):
-        if self.super_class is None:
+        if self._super_class is None:
             return self._signature
-        return "{}::{}[{}]".format(self.super_class, self.generator, self._signature)
+        return "{}::{}[{}]".format(self._super_class, self.generator, self._signature)
 
 
 class NetworkClass(NetworkClassInstance):
@@ -2683,8 +2711,8 @@ class NetworkMethodCaller(NetworkCallable):
         callee = holder.get_callable(caller, self.method_name)
         # self.log.debug("done.")
         if callee is None:
-            raise NetworkNotImplementationError("Method {}.{} not found.".format(caller, self.method_name))
-        if isinstance(callee, NetworkMethod) and callee.instance_method:
+            raise NetworkNotImplementationError("Method {}.{} not found.".format(holder, self.method_name))
+        if isinstance(callee, NetworkMethod) and callee.instance_method and type(holder) is NetworkInstance:
             actual_args = [holder]
             actual_args.extend(args)
             actual_args = tuple(actual_args)
